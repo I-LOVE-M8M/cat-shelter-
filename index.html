@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>貓貓收容所 - 雲端即時同步</title>
+    <title>貓貓收容所 - Firebase 最終版</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #0f172a; color: white; }
         .status-btn { transition: all 0.1s; border: 1px solid rgba(255,255,255,0.05); }
         .active-status { border: 2px solid #fbbf24 !important; background-color: #fbbf24 !important; color: #000 !important; font-weight: bold; }
         
-        /* 狀態顏色定義 */
+        /* 狀態顏色 */
         .bg-正常 { background-color: #6366f1; } .bg-開船 { background-color: #0ea5e9; } 
         .bg-駐艇 { background-color: #3b82f6; } .bg-值更 { background-color: #10b981; }
         .bg-碼巡 { background-color: #14b8a6; } .bg-洽公 { background-color: #06b6d4; }
@@ -27,15 +29,15 @@
         <div class="bg-slate-800 rounded-3xl p-5 shadow-2xl mb-4 border border-slate-700 sticky top-4 z-50">
             <div class="flex justify-between items-start mb-4">
                 <div>
-                    <h1 id="cloud-status" class="text-slate-500 text-[10px] font-bold mb-1 tracking-widest uppercase italic tracking-tighter">正在連線至 GitHub 雲端...</h1>
+                    <h1 id="cloud-status" class="text-green-500 text-[10px] font-bold mb-1 tracking-widest uppercase italic">Firebase Ready ⚡</h1>
                     <div class="flex items-baseline gap-1 text-amber-400">
                         <span id="present-count" class="text-5xl font-black">0</span>
                         <span class="text-lg text-slate-500">/ 17</span>
                     </div>
                 </div>
-                <div class="text-right flex flex-col items-end gap-1">
+                <div class="text-right">
                     <span class="bg-orange-500 text-[10px] px-2 py-1 rounded-md font-bold text-white shadow-sm">貓貓收容所 🐾</span>
-                    <span id="update-timer" class="text-[9px] text-slate-500">自動同步中</span>
+                    <div class="text-[9px] text-slate-500 mt-2">131 Fleet / Ops Sqn 3</div>
                 </div>
             </div>
             <div id="category-board" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 pt-3 border-t border-slate-700/50"></div>
@@ -45,18 +47,31 @@
     </div>
 
     <script>
-        // --- 雲端設定連線區 ---
-        const BIN_ID = "69f8acda36566621a8237f6f"; 
-        const MASTER_KEY = "$2a$10$79/LnHKJxNsioXirnRhFKuTloIn5Fd3v7GSFct59XZWMIXWJuc9C2"; 
+        // --- 使用你提供的最新 Firebase 配置 ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyBSQnV0F2XFXhlca57uB653lNp99WJ1Asg",
+          authDomain: "cat-shelter-49c2e.firebaseapp.com",
+          databaseURL: "https://cat-shelter-49c2e-default-rtdb.firebaseio.com",
+          projectId: "cat-shelter-49c2e",
+          storageBucket: "cat-shelter-49c2e.firebasestorage.app",
+          messagingSenderId: "325127819712",
+          appId: "1:325127819712:web:28650c1e975de03fedb825",
+          measurementId: "G-STQT6CZRHS"
+        };
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const memberRef = db.ref('cat_shelter_data');
 
         const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
         let memberStates = {};
 
+        // 建立 UI
         function initApp() {
             const app = document.getElementById('app');
             for (let i = 1; i <= 17; i++) {
                 const id = i.toString().padStart(2, '0');
-                memberStates[id] = '正常';
                 const card = document.createElement('div');
                 card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50 transition-all";
@@ -64,7 +79,7 @@
                     <div class="flex justify-between items-center mb-2 px-1">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span>
-                            <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">正常</span>
+                            <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">連線中...</span>
                         </div>
                     </div>
                     <div class="grid grid-cols-5 gap-1">
@@ -74,44 +89,20 @@
             }
         }
 
-        async function fetchCloud() {
-            try {
-                const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-                    headers: { 'X-Master-Key': MASTER_KEY }
-                });
-                const data = await res.json();
-                if (data.record && Object.keys(data.record).length > 0) {
-                    memberStates = data.record;
-                    Object.keys(memberStates).forEach(id => updateUI(id, memberStates[id]));
-                    calculate();
-                    document.getElementById('cloud-status').innerText = "● 雲端連線正常 (GitHub)";
-                    document.getElementById('cloud-status').className = "text-green-500 text-[10px] font-bold mb-1 tracking-widest uppercase italic";
-                }
-            } catch (e) {
-                document.getElementById('cloud-status').innerText = "○ 連線暫時中斷";
-                document.getElementById('cloud-status').className = "text-red-500 text-[10px] font-bold mb-1 tracking-widest uppercase italic";
-            }
-        }
-
-        async function saveCloud() {
-            try {
-                await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': MASTER_KEY
-                    },
-                    body: JSON.stringify(memberStates)
-                });
-            } catch (e) { console.error("同步失敗"); }
-        }
-
+        // 修改狀態 (即時寫入資料庫)
         function updateStatus(id, s) {
-            memberStates[id] = s;
-            updateUI(id, s);
-            calculate();
-            saveCloud();
+            memberRef.child(id).set(s);
         }
+
+        // 監聽資料庫 (這就是「秒同步」的關鍵)
+        memberRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                memberStates = data;
+                Object.keys(memberStates).forEach(id => updateUI(id, memberStates[id]));
+                calculate();
+            }
+        });
 
         function updateUI(id, s) {
             const tag = document.getElementById(`tag-${id}`);
@@ -119,9 +110,13 @@
             if(!tag) return;
             tag.textContent = s;
             tag.className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${s} text-white`;
+            
+            // 更新按鈕高亮
             document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
             const btn = document.getElementById(`btn-${id}-${s}`);
             if(btn) btn.classList.add('active-status');
+            
+            // 空員半透明處理
             card.style.opacity = (s === '空員') ? "0.3" : "1";
         }
 
@@ -131,23 +126,18 @@
             Object.keys(memberStates).forEach(id => {
                 const s = memberStates[id];
                 if(s === '正常') p++;
-                g[s].push(id);
+                if(g[s]) g[s].push(id);
             });
             document.getElementById('present-count').textContent = p;
             const board = document.getElementById('category-board');
-            board.innerHTML = statuses.slice(1, -1).filter(s => g[s].length > 0).map(s => `
+            board.innerHTML = statuses.slice(1, -1).filter(s => g[s] && g[s].length > 0).map(s => `
                 <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-700/50">
                     <div class="text-[9px] text-slate-500 font-bold mb-0.5">${s}</div>
                     <div class="text-[11px] font-bold text-amber-500 font-mono tracking-tight">${g[s].join(',')}</div>
                 </div>`).join('');
         }
 
-        window.onload = () => {
-            initApp();
-            fetchCloud();
-            // 每 15 秒同步一次，這對 JSONBin 免費版最穩定
-            setInterval(fetchCloud, 15000); 
-        };
+        window.onload = initApp;
     </script>
 </body>
 </html>
