@@ -18,6 +18,7 @@
         .bg-駐艇 { background-color: #3b82f6; } .bg-值更 { background-color: #10b981; }
         .bg-碼巡 { background-color: #14b8a6; } .bg-洽公 { background-color: #06b6d4; }
         .bg-幫廚 { background-color: #f43f5e; } .bg-補眠 { background-color: #8b5cf6; }
+        .bg-外宿 { background-color: #a855f7; } /* 新增外宿顏色 */
         .bg-放假班 { background-color: #f59e0b; } .bg-輪休 { background-color: #ef4444; }
         .bg-慰休 { background-color: #ec4899; } .bg-喪假 { background-color: #57534e; } 
         .bg-事假 { background-color: #78716c; } .bg-病假 { background-color: #1c1917; }
@@ -35,9 +36,11 @@
                         <span class="text-lg text-slate-500">/ 17</span>
                     </div>
                 </div>
-                <div class="text-right">
+                <div class="text-right flex flex-col gap-2">
                     <span class="bg-orange-500 text-[10px] px-2 py-1 rounded-md font-bold text-white shadow-sm">貓貓收容所 🐾</span>
-                    <div class="text-[9px] text-slate-500 mt-2">131 Fleet / Ops Sqn 3</div>
+                    <button onclick="copyReport()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-lg transition-all">
+                        📋 複製休假回報
+                    </button>
                 </div>
             </div>
             <div id="category-board" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 pt-3 border-t border-slate-700/50"></div>
@@ -47,7 +50,6 @@
     </div>
 
     <script>
-        // --- 使用你提供的最新 Firebase 配置 ---
         const firebaseConfig = {
           apiKey: "AIzaSyBSQnV0F2XFXhlca57uB653lNp99WJ1Asg",
           authDomain: "cat-shelter-49c2e.firebaseapp.com",
@@ -59,15 +61,14 @@
           measurementId: "G-STQT6CZRHS"
         };
 
-        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const memberRef = db.ref('cat_shelter_data');
 
-        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
+        // 新增 外宿 欄位
+        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
         let memberStates = {};
 
-        // 建立 UI
         function initApp() {
             const app = document.getElementById('app');
             for (let i = 1; i <= 17; i++) {
@@ -79,22 +80,20 @@
                     <div class="flex justify-between items-center mb-2 px-1">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span>
-                            <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">連線中...</span>
+                            <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">載入中...</span>
                         </div>
                     </div>
-                    <div class="grid grid-cols-5 gap-1">
-                        ${statuses.map(s => `<button onclick="updateStatus('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-1.5 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}
+                    <div class="grid grid-cols-4 gap-1">
+                        ${statuses.map(s => `<button onclick="updateStatus('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}
                     </div>`;
                 app.appendChild(card);
             }
         }
 
-        // 修改狀態 (即時寫入資料庫)
         function updateStatus(id, s) {
             memberRef.child(id).set(s);
         }
 
-        // 監聽資料庫 (這就是「秒同步」的關鍵)
         memberRef.on('value', (snapshot) => {
             const data = snapshot.val();
             if (data) {
@@ -110,13 +109,9 @@
             if(!tag) return;
             tag.textContent = s;
             tag.className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${s} text-white`;
-            
-            // 更新按鈕高亮
             document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
             const btn = document.getElementById(`btn-${id}-${s}`);
             if(btn) btn.classList.add('active-status');
-            
-            // 空員半透明處理
             card.style.opacity = (s === '空員') ? "0.3" : "1";
         }
 
@@ -135,6 +130,36 @@
                     <div class="text-[9px] text-slate-500 font-bold mb-0.5">${s}</div>
                     <div class="text-[11px] font-bold text-amber-500 font-mono tracking-tight">${g[s].join(',')}</div>
                 </div>`).join('');
+        }
+
+        // 休假回報複製功能
+        function copyReport() {
+            const reportCategories = ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'];
+            let reportText = "61艇休假回報\n";
+            let hasAnyData = false;
+
+            reportCategories.forEach(s => {
+                // 過濾掉 01 和 02
+                const filteredMembers = (memberStates && Object.keys(memberStates)) 
+                    ? Object.keys(memberStates).filter(id => memberStates[id] === s && id !== '01' && id !== '02')
+                    : [];
+                
+                if (filteredMembers.length > 0) {
+                    reportText += `${s}${filteredMembers.join('、')}\n`;
+                    hasAnyData = true;
+                }
+            });
+
+            if (!hasAnyData) {
+                alert("目前沒有休假人員資訊（已排除01、02）");
+                return;
+            }
+
+            navigator.clipboard.writeText(reportText.trim()).then(() => {
+                alert("回報內容已複製！\n\n" + reportText);
+            }).catch(err => {
+                console.error('複製失敗: ', err);
+            });
         }
 
         window.onload = initApp;
