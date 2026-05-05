@@ -93,6 +93,13 @@
         let currentEditingId = null;
         let editMode = ""; 
 
+        // 核心修正：精確日期差計算（不受時區影響）
+        function getDiffDays(dateStr) {
+            const target = new Date(dateStr.split('T')[0]);
+            const base = new Date('2026-05-05'); // 5/5 左班當值 (基準)
+            return Math.floor((target - base) / (1000 * 60 * 60 * 24));
+        }
+
         function initApp() {
             const app = document.getElementById('app');
             const deputySelect = document.getElementById('deputy');
@@ -121,16 +128,14 @@
         }
 
         function updateDutyUI() {
-            const today = new Date();
-            const baseDate = new Date(2026, 4, 5); 
-            const diff = Math.floor((today - baseDate) / (1000 * 60 * 60 * 24));
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            const diff = getDiffDays(dateStr);
             document.getElementById('today-duty').textContent = (diff % 2 === 0) ? "📅 今日當值：左班" : "📅 今日當值：右班";
         }
 
         function getDutyTeam(dateStr) {
-            const d = new Date(dateStr);
-            const baseDate = new Date(2026, 4, 5);
-            const diff = Math.floor((d - baseDate) / (1000 * 60 * 60 * 24));
+            const diff = getDiffDays(dateStr);
             return (diff % 2 === 0) ? "左" : "右";
         }
 
@@ -189,41 +194,43 @@
 
         function copyMealReport() {
             const getEaters = (timeStr, mealType) => {
-                // 強制轉換為毫秒比對，避免時區偏差
-                const target = new Date(timeStr).getTime();
-                const dutyTeam = getDutyTeam(timeStr);
+                const targetTime = new Date(timeStr).getTime();
+                const targetDutyTeam = getDutyTeam(timeStr); // 計算週六/週日是誰當值
                 
+                // 找出誰目前有職代勤務
                 const activeDeputies = allIds.filter(id => {
                     return allIds.some(oid => {
                         const d = memberStates[oid]; if (!d) return false;
                         const s = d.start || d.preStart ? new Date(d.start || d.preStart).getTime() : 0;
                         const e = d.end || d.preEnd ? new Date(d.end || d.preEnd).getTime() : 0;
-                        return (d.deputy === id || d.preDeputy === id) && target >= s && target < e;
+                        return (d.deputy === id || d.preDeputy === id) && targetTime >= s && targetTime < e;
                     });
                 });
 
                 return allIds.filter(id => {
                     const d = memberStates[id]; if (!d || d.status === '空員') return false;
+                    
+                    // 1. 如果背職代，一定吃
                     if (activeDeputies.includes(id)) return true;
 
                     const myTeam = leftTeam.includes(id) ? "左" : "右";
                     const s = d.start || d.preStart ? new Date(d.start || d.preStart).getTime() : 0;
                     const e = d.end || d.preEnd ? new Date(d.end || d.preEnd).getTime() : 0;
 
-                    // 1. 如果有填放假時間
+                    // 2. 有填假單的情況
                     if (s > 0 && e > 0) {
-                        if (mealType === '早' && target === s) return true; // 放假當天早餐要吃
-                        if (target >= s && target < e) return false;      // 假期中不吃
-                        return true; // 歸營後必吃
+                        if (mealType === '早' && targetTime === s) return true; // 放假當天早餐
+                        if (targetTime >= s && targetTime < e) return false;    // 假期間不吃
+                        return true;
                     }
 
-                    // 2. 如果沒填時間，看狀態與班別
+                    // 3. 沒填假單的情況（重點排除邏輯）
                     const leaveS = ['輪休', '慰休', '喪假', '事假', '病假', '外宿', '放假班'];
-                    if (leaveS.includes(d.status)) return false;
+                    if (leaveS.includes(d.status)) return false; // 狀態是放假的就不吃
                     
-                    // 關鍵：如果我沒請假，但也沒輪值，就不吃
-                    return myTeam === dutyTeam;
-                }).join('、');
+                    // 根據當天輪值班別決定
+                    return myTeam === targetDutyTeam;
+                }).sort((a,b) => parseInt(a)-parseInt(b)).join('、');
             };
 
             const report = `61艇伙食統計表\n\n` +
@@ -235,7 +242,7 @@
                 `週日晚餐：${getEaters('2026-05-10T17:00', '晚')}\n` +
                 `週一早餐：${getEaters('2026-05-11T07:00', '早')}`;
             
-            navigator.clipboard.writeText(report).then(() => alert("伙食名單複製完成！已修正時間判定誤差。"));
+            navigator.clipboard.writeText(report).then(() => alert("伙食名單複製完成！"));
         }
 
         function copyStatusReport() {
