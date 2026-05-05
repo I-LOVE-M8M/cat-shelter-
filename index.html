@@ -27,10 +27,10 @@
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex justify-between items-center">
             <div>
                 <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider">載入中...</h1>
-                <div class="text-sm font-bold text-slate-300 tracking-tight">伙食與動態管理</div>
+                <div class="text-sm font-bold text-slate-300 tracking-tight">智慧伙食與職代管理</div>
             </div>
             <div class="flex gap-2">
-                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all">📋 複製伙食</button>
+                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all">📋 複製伙食(分班)</button>
                 <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all">📋 複製動態</button>
             </div>
         </div>
@@ -39,12 +39,9 @@
     <div class="max-w-4xl mx-auto px-3 mt-4 space-y-3" id="app"></div>
 
     <div class="max-w-4xl mx-auto px-3 mt-6 pb-10">
-        <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700">
-            <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center gap-2">
-                <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> 人員動態即時統計
-            </h3>
-            <div id="stat-board" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                </div>
+        <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700 text-xs">
+            <h3 class="text-slate-500 mb-3 font-bold">人員即時統計</h3>
+            <div id="stat-board" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
         </div>
     </div>
 
@@ -53,14 +50,14 @@
             <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic">設定時間</h2>
             <div class="space-y-4 text-sm mt-4">
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold">開始時間 (17:00)</label>
+                    <label class="block text-slate-400 mb-1 font-bold">開始時間</label>
                     <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold">結束時間 (17:00)</label>
+                    <label class="block text-slate-400 mb-1 font-bold">結束時間</label>
                     <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
                 </div>
-                <div id="deputy-box">
+                <div>
                     <label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
                     <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select>
                 </div>
@@ -68,9 +65,9 @@
             <div class="flex flex-col gap-2 mt-6">
                 <div class="flex gap-2">
                     <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs">取消</button>
-                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存</button>
+                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存設定</button>
                 </div>
-                <button id="clear-btn" onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除此筆時間資料</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除此筆時間資料</button>
             </div>
         </div>
     </div>
@@ -125,121 +122,108 @@
                     </div>`;
                 app.appendChild(card);
             });
-            updateDuty();
-        }
-
-        function updateDuty() {
-            const today = new Date();
-            const baseDate = new Date(2026, 4, 5); 
-            const diffDays = Math.floor((today - baseDate) / (1000 * 60 * 60 * 24));
-            document.getElementById('today-duty').textContent = (diffDays % 2 === 0) ? "📅 今日當值：左班" : "📅 今日當值：右班";
+            const baseDate = new Date(2026, 4, 5);
+            const diff = Math.floor((new Date() - baseDate) / (1000 * 60 * 60 * 24));
+            document.getElementById('today-duty').textContent = (diff % 2 === 0) ? "📅 今日當值：左班" : "📅 今日當值：右班";
         }
 
         function openConfigModal(id, m) {
-            currentEditingId = id.toString();
-            editMode = m;
-            const data = memberStates[currentEditingId] || {};
+            currentEditingId = id.toString(); editMode = m;
+            const d = memberStates[currentEditingId] || {};
             const nowDay = new Date().toISOString().split('T')[0];
-            document.getElementById('start-time').value = (m==='pre' ? data.preStart : data.start) || `${nowDay}T17:00`;
-            document.getElementById('end-time').value = (m==='pre' ? data.preEnd : data.end) || `${nowDay}T17:00`;
-            document.getElementById('deputy').value = data.deputy || "無";
+            document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T17:00`;
+            document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T17:00`;
+            document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
             document.getElementById('modal-title').textContent = `${currentEditingId} 號 ${m==='pre'?'預放':'假單'}設定`;
-            m === 'pre' ? document.getElementById('deputy-box').classList.add('hidden') : document.getElementById('deputy-box').classList.remove('hidden');
             document.getElementById('modal').style.display = 'flex';
         }
 
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
-
         function clearSpecificData() {
-            const updates = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '' } : { start: '', end: '', deputy: '' };
+            const updates = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '', preDeputy: '' } : { start: '', end: '', deputy: '' };
             memberRef.child(currentEditingId).update(updates);
             closeModal();
         }
 
         function handleStatusClick(id, s) {
-            const sid = id.toString();
             if (['輪休', '慰休', '喪假', '事假', '病假'].includes(s)) {
-                memberRef.child(sid).update({ status: s });
-                openConfigModal(sid, 'leave');
-            } else {
-                memberRef.child(sid).update({ status: s });
-            }
+                memberRef.child(id).update({ status: s });
+                openConfigModal(id, 'leave');
+            } else { memberRef.child(id).update({ status: s }); }
         }
 
         function saveModal() {
-            const s = document.getElementById('start-time').value;
-            const e = document.getElementById('end-time').value;
-            const d = document.getElementById('deputy').value;
-            const updates = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e } : { start: s, end: e, deputy: d };
+            const s = document.getElementById('start-time').value, e = document.getElementById('end-time').value, d = document.getElementById('deputy').value;
+            const updates = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e, preDeputy: d } : { start: s, end: e, deputy: d };
             memberRef.child(currentEditingId).update(updates);
             closeModal();
         }
 
         memberRef.on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                memberStates = data;
-                allIds.forEach(id => { if(memberStates[id]) updateUI(id, memberStates[id]); });
-                refreshStatBoard();
-            }
+            memberStates = snapshot.val() || {};
+            allIds.forEach(id => {
+                const d = memberStates[id]; if(!d) return;
+                document.getElementById(`tag-${id}`).textContent = d.status;
+                document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
+                let info = "";
+                if(d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
+                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
+                document.getElementById(`detail-${id}`).textContent = info;
+                document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
+                document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
+                const btn = document.getElementById(`btn-${id}-${d.status}`); if(btn) btn.classList.add('active-status');
+            });
+            const board = document.getElementById('stat-board'); board.innerHTML = "";
+            statuses.forEach(s => {
+                const f = allIds.filter(id => memberStates[id]?.status === s);
+                if(f.length>0) board.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg border border-slate-700/50"><div>${s}</div><div class="text-amber-500 font-mono">${f.join(',')}</div></div>`;
+            });
         });
 
-        function updateUI(id, data) {
-            const tag = document.getElementById(`tag-${id}`);
-            const detail = document.getElementById(`detail-${id}`);
-            const preBtn = document.getElementById(`pre-${id}`);
-            if(!tag) return;
-
-            tag.textContent = data.status || '正常';
-            tag.className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${data.status || '正常'} text-white`;
-            
-            let info = "";
-            if (data.end) info += `[假:${data.end.slice(5,16).replace('T',' ')} (代:${data.deputy || '無'})] `;
-            if (data.preLeave) info += `[預:${data.preEnd.slice(5,16).replace('T',' ')}]`;
-            detail.textContent = info;
-
-            preBtn.className = data.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
-            preBtn.textContent = data.preLeave ? "預放中" : "預放";
-
-            document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
-            const btn = document.getElementById(`btn-${id}-${data.status || '正常'}`);
-            if(btn) btn.classList.add('active-status');
-        }
-
-        function refreshStatBoard() {
-            const board = document.getElementById('stat-board');
-            board.innerHTML = "";
-            statuses.forEach(s => {
-                const filtered = allIds.filter(id => memberStates[id]?.status === s).sort();
-                if (filtered.length > 0) {
-                    board.innerHTML += `
-                        <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/50">
-                            <div class="text-[9px] text-slate-500 font-bold mb-0.5">${s}</div>
-                            <div class="text-[11px] font-bold text-amber-500 font-mono">${filtered.join(',')}</div>
-                        </div>`;
-                }
-            });
-        }
-
         function copyMealReport() {
-            const getEaters = (targetTimeStr) => {
-                const target = new Date(targetTimeStr).getTime();
-                return allIds.filter(id => {
-                    const d = memberStates[id];
-                    if (!d || d.status === '空員') return false;
-                    if (d.preLeave && d.preStart && d.preEnd) {
+            const getEaters = (time) => {
+                const target = new Date(time).getTime();
+                // 找出哪些人正在幫別人「背職代」
+                const activeDeputies = allIds.filter(id => {
+                    const others = allIds.map(oid => memberStates[oid]);
+                    return others.some(d => {
+                        if (!d) return false;
+                        const s = new Date(d.start || d.preStart).getTime();
+                        const e = new Date(d.end || d.preEnd).getTime();
+                        return (d.deputy === id || d.preDeputy === id) && target > s && target < e;
+                    });
+                });
+
+                const eaters = allIds.filter(id => {
+                    const d = memberStates[id]; if (!d || d.status === '空員') return false;
+                    if (activeDeputies.includes(id)) return true; // 是職代就要吃
+                    if (d.preLeave) {
                         const ps = new Date(d.preStart).getTime(), pe = new Date(d.preEnd).getTime();
                         if (target > ps && target < pe) return false;
                     }
-                    if (['輪休', '慰休', '喪假', '事假', '病假'].includes(d.status) && d.start && d.end) {
+                    if (['輪休', '慰休', '喪假', '事假', '病假'].includes(d.status)) {
                         const ls = new Date(d.start).getTime(), le = new Date(d.end).getTime();
                         if (target > ls && target < le) return false;
                     }
                     return true;
-                }).join('、');
+                });
+                return { 
+                    left: eaters.filter(id => leftTeam.includes(id)).join('、') || '無',
+                    right: eaters.filter(id => rightTeam.includes(id)).join('、') || '無'
+                };
             };
-            const report = `伙食統計\n\n週六早餐：${getEaters('2026-05-09T07:00')}\n週六中餐：${getEaters('2026-05-09T11:00')}\n週六晚餐：${getEaters('2026-05-09T17:00')}\n週日早餐：${getEaters('2026-05-10T07:00')}\n週日中餐：${getEaters('2026-05-10T11:00')}\n週日晚餐：${getEaters('2026-05-10T17:00')}\n週一早餐：${getEaters('2026-05-11T07:00')}`;
-            navigator.clipboard.writeText(report).then(() => alert("名單已複製"));
+
+            let report = "61艇伙食統計(分班)\n\n";
+            const times = [
+                {n: "週六早餐", t: "2026-05-09T07:00"}, {n: "週六中餐", t: "2026-05-09T11:00"}, {n: "週六晚餐", t: "2026-05-09T17:00"},
+                {n: "週日早餐", t: "2026-05-10T07:00"}, {n: "週日中餐", t: "2026-05-10T11:00"}, {n: "週日晚餐", t: "2026-05-10T17:00"},
+                {n: "週一早餐", t: "2026-05-11T07:00"}
+            ];
+            times.forEach(tm => {
+                const res = getEaters(tm.t);
+                report += `【${tm.n}】\n左班：${res.left}\n右班：${res.right}\n\n`;
+            });
+            navigator.clipboard.writeText(report).then(() => alert("伙食清單(分班)已複製！已自動計算職代留餐。"));
         }
 
         function copyStatusReport() {
@@ -249,7 +233,7 @@
                 if (f.length > 0) text += `${s}：${f.join('、')}\n`;
             });
             const pre = allIds.filter(id => memberStates[id]?.preLeave);
-            if (pre.length > 0) text += `預放人員：${pre.join('、')}\n`;
+            if (pre.length > 0) text += `預放：${pre.join('、')}\n`;
             navigator.clipboard.writeText(text).then(() => alert("動態已複製"));
         }
         window.onload = initApp;
