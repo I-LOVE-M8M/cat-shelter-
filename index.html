@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智慧伙食管理系統 - 專業修正版</title>
+    <title>智慧伙食管理系統 - 職代修正版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -43,12 +43,12 @@
 
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
-            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center">設定時間與職代</h2>
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center italic">時間與職代設定</h2>
             <div class="space-y-4 mt-4">
-                <div><label class="block text-slate-400 mb-1 font-bold">離營時間 (07:00放假)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold italic">離營時間 (07:00放假)</label>
                 <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">歸營時間 (07:00收假)</label>
-                <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
+                <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none border-amber-500"></div>
                 <div><label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
                 <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select></div>
             </div>
@@ -57,7 +57,7 @@
                     <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold active:scale-95">取消</button>
                     <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold active:scale-95">儲存</button>
                 </div>
-                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95">清除此次紀錄</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95">清除此筆紀錄</button>
             </div>
         </div>
     </div>
@@ -154,7 +154,7 @@
                 document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
                 let info = "";
                 if(d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
-                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')}]`;
+                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
                 document.getElementById(`detail-${id}`).textContent = info;
                 document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold shadow-lg" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
@@ -184,37 +184,42 @@
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
                         const myTeam = leftTeam.includes(id) ? "左" : "右";
 
-                        // 1. 職代身分檢查
+                        // 關鍵修正：獨立檢查正式職代與預放職代
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
-                            const st = parseToTime(od.start || od.preStart);
-                            const et = parseToTime(od.end || od.preEnd);
-                            return (od.deputy === id || od.preDeputy === id) && targetT >= st && targetT < et;
+                            
+                            // 檢查正式假單職代
+                            const s = parseToTime(od.start), e = parseToTime(od.end);
+                            const isOfficialDep = (od.deputy === id && targetT >= s && targetT < e);
+                            
+                            // 檢查預放職代
+                            const ps = parseToTime(od.preStart), pe = parseToTime(od.preEnd);
+                            const isPreDep = (od.preDeputy === id && targetT >= ps && targetT < pe);
+                            
+                            return isOfficialDep || isPreDep;
                         });
                         if (isDeputyNow) return true;
 
-                        // 2. 假期檢查 (精確檢查預放與假單)
+                        // 假期檢查
                         const checkLeave = (start, end) => {
                             if(!start || !end) return false;
                             const sT = parseToTime(start), eT = parseToTime(end);
-                            if (tm.m === '早' && targetT === sT) return false; // 排除放假當天早餐不吃
+                            if (tm.m === '早' && targetT === sT) return false; 
                             return (targetT >= sT && targetT < eT);
                         };
-
-                        // 只要中任何一個假期，就不吃
                         if (checkLeave(d.start, d.end) || checkLeave(d.preStart, d.preEnd)) return false;
 
-                        // 3. 早餐通行證：非假期中人員全員吃
+                        // 早餐邏輯
                         if (tm.m === '早') return true;
 
-                        // 4. 中晚餐邏輯：嚴格執行當值班
+                        // 中晚餐邏輯
                         return myTeam === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
                     
                     reportText += `${tm.n}：${eaters.join('、')}\n`;
                 });
 
-                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已精確計算並複製！"));
+                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已精確計算職代並複製！"));
             } catch (err) { alert("複製出錯：" + err.message); }
         }
 
