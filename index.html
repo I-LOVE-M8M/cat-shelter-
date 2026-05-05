@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智慧伙食管理系統</title>
+    <title>智慧伙食管理系統 - 精準版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -26,7 +26,7 @@
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex justify-between items-center">
             <div>
                 <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider">載入中...</h1>
-                <div class="text-sm font-bold text-slate-300 italic">Personnel & Meal Ops</div>
+                <div class="text-sm font-bold text-slate-300 italic">Personnel & Meal Management</div>
             </div>
             <div class="flex gap-2">
                 <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
@@ -43,21 +43,21 @@
 
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
-            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic text-center">設定</h2>
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic text-center">設定紀錄</h2>
             <div class="space-y-4 mt-4">
-                <div><label class="block text-slate-400 mb-1 font-bold">開始/離營 (07:00)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold">開始時間 (07:00放假)</label>
                 <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
-                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">結束/歸營 (07:00)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">歸營時間 (07:00收假)</label>
                 <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
                 <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select></div>
             </div>
             <div class="flex flex-col gap-2 mt-6">
                 <div class="flex gap-2">
-                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs active:scale-95">取消</button>
-                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs active:scale-95">儲存</button>
+                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs">取消</button>
+                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存</button>
                 </div>
-                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95">清除紀錄</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除此筆時間資料</button>
             </div>
         </div>
     </div>
@@ -90,7 +90,7 @@
         function getDutyTeam(dateString) {
             const base = new Date('2026-05-05');
             const target = new Date(dateString.split('T')[0]);
-            const diff = Math.floor((target - base) / (1000 * 60 * 60 * 24));
+            const diff = Math.floor((target - base) / 86400000);
             return (Math.abs(diff) % 2 === 0) ? "左" : "右";
         }
 
@@ -106,13 +106,8 @@
                 card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-2"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span class="text-[9px] text-slate-500 font-bold">${leftTeam.includes(id)?'左':'右'}班</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">...</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-500 font-bold mb-2 px-1 min-h-[14px]"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
                 app.appendChild(card);
             });
-            updateDutyUI();
-        }
-
-        function updateDutyUI() {
-            const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
-            document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyTeam(todayStr)}班`;
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyTeam(today)}班`;
         }
 
         function openConfigModal(id, m) {
@@ -184,42 +179,42 @@
                     const d = memberStates[id]; if(!d || d.status === '空員') return false;
                     const myT = leftTeam.includes(id) ? "左" : "右";
 
-                    // 1. 職代檢查 (背此餐職代的人一定吃)
-                    const isDeputyNow = allIds.some(oid => {
+                    // 1. 職代身分檢查 (最高優先權)
+                    const isDeputy = allIds.some(oid => {
                         const od = memberStates[oid]; if(!od) return false;
-                        const st = new Date((od.start || od.preStart || "").replace(/-/g, '/')).getTime();
-                        const et = new Date((od.end || od.preEnd || "").replace(/-/g, '/')).getTime();
+                        const st = new Date((od.start || od.preStart || "2000-01-01T00:00").replace(/-/g, '/')).getTime();
+                        const et = new Date((od.end || od.preEnd || "2000-01-01T00:00").replace(/-/g, '/')).getTime();
                         return (od.deputy === id || od.preDeputy === id) && targetT >= st && targetT < et;
                     });
-                    if (isDeputyNow) return true;
+                    if (isDeputy) return true;
 
-                    // 2. 假期檢查 (只要落在有效假期區間就不吃)
-                    const checkOnLeave = (start, end) => {
+                    // 2. 假期排除檢查 (正式假單或預放只要落在區間就排除)
+                    const checkPeriod = (start, end) => {
                         if(!start || !end) return false;
                         const sT = new Date(start.replace(/-/g, '/')).getTime();
                         const eT = new Date(end.replace(/-/g, '/')).getTime();
-                        if (tm.m === '早' && targetT === sT) return false; // 排除放假當天早餐不吃(稍後由早餐邏輯補回)
+                        // 除非是放假當天(targetT == sT)且又是早餐，否則假期區間內通通回傳 TRUE (代表在假期間)
+                        if (tm.m === '早' && targetT === sT) return false; 
                         return (targetT >= sT && targetT < eT);
                     };
 
-                    const isOnOfficialLeave = checkOnLeave(d.start, d.end);
-                    const isOnPreLeave = checkOnLeave(d.preStart, d.preEnd);
-                    
-                    if (isOnOfficialLeave || isOnPreLeave) return false;
+                    if (checkPeriod(d.start, d.end) || checkPeriod(d.preStart, d.preEnd)) return false;
 
-                    // 3. 早餐特別處理：放假當天、收假當天、正常班都吃
-                    if (tm.m === '早') {
-                        // 除非正在假期中間，否則早餐通通要吃
-                        return true;
-                    }
+                    // 3. 早餐邏輯：非假期中人員全吃
+                    if (tm.m === '早') return true;
 
-                    // 4. 中晚餐核心邏輯：當值班吃，放假班不吃
+                    // 4. 中晚餐邏輯：嚴格看班別
+                    const leaveS = ['輪休', '慰休', '喪假', '事假', '病假', '外宿', '放假班'];
+                    // 如果沒填時間但狀態是放假類，不吃
+                    if (leaveS.includes(d.status) && !d.start && !d.preStart) return false;
+                    // 當值班才吃
                     return myT === dutyT;
+
                 }).sort((a,b) => parseInt(a)-parseInt(b)).join('、');
 
                 report += `${tm.n}：${eaters}\n`;
             });
-            navigator.clipboard.writeText(report).then(() => alert("伙食名單複製完成！已排除預放且經過週末的人員。"));
+            navigator.clipboard.writeText(report).then(() => alert("伙食名單複製成功！已排除預放區間人員。"));
         }
 
         function copyStatusReport() {
