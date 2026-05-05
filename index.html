@@ -189,62 +189,53 @@
 
         function copyMealReport() {
             const getEaters = (timeStr, mealType) => {
+                // 強制轉換為毫秒比對，避免時區偏差
                 const target = new Date(timeStr).getTime();
-                const dutyTeam = getDutyTeam(timeStr); // 判定當天是左班還是右班當值
+                const dutyTeam = getDutyTeam(timeStr);
                 
-                // 找出誰正在替別人背職代
                 const activeDeputies = allIds.filter(id => {
                     return allIds.some(oid => {
                         const d = memberStates[oid]; if (!d) return false;
-                        const s = new Date(d.start || d.preStart).getTime();
-                        const e = new Date(d.end || d.preEnd).getTime();
+                        const s = d.start || d.preStart ? new Date(d.start || d.preStart).getTime() : 0;
+                        const e = d.end || d.preEnd ? new Date(d.end || d.preEnd).getTime() : 0;
                         return (d.deputy === id || d.preDeputy === id) && target >= s && target < e;
                     });
                 });
 
                 return allIds.filter(id => {
                     const d = memberStates[id]; if (!d || d.status === '空員') return false;
-                    
-                    // 1. 如果是職代，不論身分必吃
                     if (activeDeputies.includes(id)) return true;
 
-                    // 2. 獲取該員自己的班別
-                    const isLeft = leftTeam.includes(id);
-                    const myTeam = isLeft ? "左" : "右";
+                    const myTeam = leftTeam.includes(id) ? "左" : "右";
+                    const s = d.start || d.preStart ? new Date(d.start || d.preStart).getTime() : 0;
+                    const e = d.end || d.preEnd ? new Date(d.end || d.preEnd).getTime() : 0;
 
-                    // 3. 獲取該員的時間設定
-                    const s = new Date(d.start || d.preStart).getTime();
-                    const e = new Date(d.end || d.preEnd).getTime();
-
-                    // 4. 判定：如果是放假班當天 07:00 放假，早餐要吃
-                    if (mealType === '早' && s && target === s) return true;
-
-                    // 5. 判定：如果現在時間在假期區間內 (離營s ~ 歸營e)
-                    if (s && e && target >= s && target < e) return false;
-
-                    // 6. 重要判定：如果沒有時間設定 (純看狀態或班別)
-                    // 如果該員屬於「放假班」，且沒有被選為職代，就不該出現在名單
-                    if (!s && !e) {
-                        // 狀態排除
-                        const leaveS = ['輪休', '慰休', '喪假', '事假', '病假', '外宿', '放假班'];
-                        if (leaveS.includes(d.status)) return false;
-                        
-                        // 班別排除：如果我的班別跟今天當值班別不同，就不吃
-                        if (myTeam !== dutyTeam) return false;
+                    // 1. 如果有填放假時間
+                    if (s > 0 && e > 0) {
+                        if (mealType === '早' && target === s) return true; // 放假當天早餐要吃
+                        if (target >= s && target < e) return false;      // 假期中不吃
+                        return true; // 歸營後必吃
                     }
 
-                    return true;
-                }).sort((a,b) => parseInt(a) - parseInt(b)).join('、');
+                    // 2. 如果沒填時間，看狀態與班別
+                    const leaveS = ['輪休', '慰休', '喪假', '事假', '病假', '外宿', '放假班'];
+                    if (leaveS.includes(d.status)) return false;
+                    
+                    // 關鍵：如果我沒請假，但也沒輪值，就不吃
+                    return myTeam === dutyTeam;
+                }).join('、');
             };
 
-            const times = [
-                {n: "週六早餐", t: "2026-05-09T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-09T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-09T17:00", m: "晚"},
-                {n: "週日早餐", t: "2026-05-10T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-10T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-10T17:00", m: "晚"},
-                {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
-            ];
-            let r = "61艇伙食統計表\n\n";
-            times.forEach(tm => { r += `${tm.n}：${getEaters(tm.t, tm.m)}\n`; });
-            navigator.clipboard.writeText(r).then(() => alert("伙食複製完成！已修正 03 號等放假班人員伙食邏輯。"));
+            const report = `61艇伙食統計表\n\n` +
+                `週六早餐：${getEaters('2026-05-09T07:00', '早')}\n` +
+                `週六中餐：${getEaters('2026-05-09T11:00', '中')}\n` +
+                `週六晚餐：${getEaters('2026-05-09T17:00', '晚')}\n` +
+                `週日早餐：${getEaters('2026-05-10T07:00', '早')}\n` +
+                `週日中餐：${getEaters('2026-05-10T11:00', '中')}\n` +
+                `週日晚餐：${getEaters('2026-05-10T17:00', '晚')}\n` +
+                `週一早餐：${getEaters('2026-05-11T07:00', '早')}`;
+            
+            navigator.clipboard.writeText(report).then(() => alert("伙食名單複製完成！已修正時間判定誤差。"));
         }
 
         function copyStatusReport() {
