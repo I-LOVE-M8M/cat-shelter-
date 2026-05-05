@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>131 艦隊 - 精準伙食與動態管理</title>
+    <title>131 艦隊 - 智慧伙食與動態管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -17,7 +17,7 @@
         .bg-放假班 { background-color: #f59e0b; }
         .bg-輪休, .bg-慰休, .bg-喪假, .bg-事假, .bg-病假 { background-color: #ef4444; }
         .bg-空員 { background-color: #334155; opacity: 0.5; }
-        #modal { display: none; background: rgba(0,0,0,0.8); }
+        #modal { display: none; background: rgba(0,0,0,0.9); }
         .pre-leave-active { background-color: #f43f5e !important; border: 2px solid #fb7185 !important; color: white !important; }
     </style>
 </head>
@@ -27,7 +27,7 @@
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex justify-between items-center">
             <div>
                 <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider">載入中...</h1>
-                <div class="text-sm font-bold text-slate-300">131艦隊 伙食動態系統</div>
+                <div class="text-sm font-bold text-slate-300">131艦隊 伙食動態並行系統</div>
             </div>
             <div class="flex gap-2">
                 <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg">📋 複製伙食</button>
@@ -40,27 +40,27 @@
 
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl">
-            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic">設定</h2>
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic tracking-tight">設定時間</h2>
             <div class="space-y-4 text-sm mt-4">
                 <div>
-                    <label id="start-label" class="block text-slate-400 mb-1">放假時間 (預設 17:00)</label>
-                    <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                    <label id="start-label" class="block text-slate-400 mb-1 font-bold">開始時間 (17:00)</label>
+                    <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <label id="end-label" class="block text-slate-400 mb-1">收假時間 (預設 17:00)</label>
-                    <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                    <label id="end-label" class="block text-slate-400 mb-1 font-bold">收假時間 (17:00)</label>
+                    <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-indigo-500">
                 </div>
                 <div id="deputy-box">
-                    <label class="block text-slate-400 mb-1">職務代理人</label>
-                    <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"><option value="無">無</option></select>
+                    <label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
+                    <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select>
                 </div>
             </div>
             <div class="flex flex-col gap-2 mt-6">
                 <div class="flex gap-2">
                     <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs">取消</button>
-                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存設定</button>
+                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存</button>
                 </div>
-                <button id="cancel-btn" onclick="clearData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除設定 (恢復正常)</button>
+                <button id="clear-btn" onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除此筆時間資料</button>
             </div>
         </div>
     </div>
@@ -87,7 +87,7 @@
         
         let memberStates = {};
         let currentEditingId = null;
-        let mode = ""; 
+        let editMode = ""; // "leave" or "pre"
 
         function initApp() {
             const app = document.getElementById('app');
@@ -100,7 +100,7 @@
                 const team = leftTeam.includes(id) ? '左班' : '右班';
                 const card = document.createElement('div');
                 card.id = `card-${id}`;
-                card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
+                card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50 transition-all";
                 card.innerHTML = `
                     <div class="flex justify-between items-center mb-2 px-1">
                         <div class="flex items-center gap-2">
@@ -108,9 +108,9 @@
                             <span class="text-[9px] text-slate-500 font-bold">${team}</span>
                             <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常">...</span>
                         </div>
-                        <button id="pre-${id}" onclick="openModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button>
+                        <button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500 transition-all">預放</button>
                     </div>
-                    <div id="detail-${id}" class="text-[8px] text-amber-500 font-bold mb-2 px-1 min-h-[12px]"></div>
+                    <div id="detail-${id}" class="text-[8px] text-amber-500 font-bold mb-2 px-1 min-h-[14px]"></div>
                     <div class="grid grid-cols-4 gap-1">
                         ${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}
                     </div>`;
@@ -126,48 +126,59 @@
             document.getElementById('today-duty').textContent = (diffDays % 2 === 0) ? "📅 今日當值：左班" : "📅 今日當值：右班";
         }
 
-        function openModal(id, m) {
-            currentEditingId = id; mode = m;
-            const now = new Date().toISOString().split('T')[0];
-            document.getElementById('start-time').value = `${now}T17:00`;
-            document.getElementById('end-time').value = `${now}T17:00`;
+        function openConfigModal(id, m) {
+            currentEditingId = id; editMode = m;
+            const data = memberStates[id] || {};
+            const nowDay = new Date().toISOString().split('T')[0];
             
-            if (mode === 'pre') {
-                document.getElementById('modal-title').textContent = `${id} 號 預放區間設定`;
+            // 讀取舊資料或預設
+            document.getElementById('start-time').value = (m==='pre' ? data.preStart : data.start) || `${nowDay}T17:00`;
+            document.getElementById('end-time').value = (m==='pre' ? data.preEnd : data.end) || `${nowDay}T17:00`;
+            document.getElementById('deputy').value = data.deputy || "無";
+
+            if (editMode === 'pre') {
+                document.getElementById('modal-title').textContent = `${id} 號 預放時間`;
                 document.getElementById('deputy-box').classList.add('hidden');
+                document.getElementById('clear-btn').textContent = "清除預放 (恢復留餐)";
             } else {
                 document.getElementById('modal-title').textContent = `${id} 號 差假登記`;
                 document.getElementById('deputy-box').classList.remove('hidden');
+                document.getElementById('clear-btn').textContent = "清除假單資料";
             }
             document.getElementById('modal').style.display = 'flex';
         }
 
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
-        function clearData() {
-            memberRef.child(currentEditingId).update({ preLeave: false, start: '', end: '', deputy: '' });
+        function clearSpecificData() {
+            if (editMode === 'pre') {
+                memberRef.child(currentEditingId).update({ preLeave: false, preStart: '', preEnd: '' });
+            } else {
+                memberRef.child(currentEditingId).update({ start: '', end: '', deputy: '' });
+            }
             closeModal();
         }
 
         function handleStatusClick(id, s) {
             const needDetail = ['輪休', '慰休', '喪假', '事假', '病假'];
             if (needDetail.includes(s)) {
-                openModal(id, 'leave');
-                currentEditingStatus = s;
+                memberRef.child(id).update({ status: s }); // 先改標籤
+                openConfigModal(id, 'leave');
             } else {
-                memberRef.child(id).update({ status: s, start: '', end: '', deputy: '', preLeave: false });
+                // 點擊一般狀態，絕對不影響預放資料
+                memberRef.child(id).update({ status: s });
             }
         }
 
         function saveModal() {
-            const start = document.getElementById('start-time').value;
-            const end = document.getElementById('end-time').value;
-            const deputy = document.getElementById('deputy').value;
+            const s = document.getElementById('start-time').value;
+            const e = document.getElementById('end-time').value;
+            const d = document.getElementById('deputy').value;
 
-            if (mode === 'pre') {
-                memberRef.child(currentEditingId).update({ preLeave: true, start, end });
+            if (editMode === 'pre') {
+                memberRef.child(currentEditingId).update({ preLeave: true, preStart: s, preEnd: e });
             } else {
-                memberRef.child(currentEditingId).update({ status: currentEditingStatus, start, end, deputy, preLeave: false });
+                memberRef.child(currentEditingId).update({ start: s, end: e, deputy: d });
             }
             closeModal();
         }
@@ -187,14 +198,12 @@
                     tag.className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status}`;
                     
                     let info = "";
-                    if (d.preLeave) {
-                        info = `[預放: ${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')}]`;
-                        preBtn.className = "text-[9px] px-2 py-1 rounded pre-leave-active font-bold";
-                    } else {
-                        if(d.end) info = `迄: ${d.end.slice(5,16).replace('T',' ')} (代:${d.deputy})`;
-                        preBtn.className = "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
-                    }
+                    if (d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')}] `;
+                    if (d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')}]`;
                     detail.textContent = info;
+
+                    preBtn.className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
+                    preBtn.textContent = d.preLeave ? "預放中" : "預放";
 
                     document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
                     const btn = document.getElementById(`btn-${id}-${d.status}`);
@@ -211,15 +220,19 @@
                     const d = memberStates[id];
                     if (!d || d.status === '空員') return false;
                     
-                    // 只要有填時間 (不管是假單還是預放)，邏輯一致
-                    if (d.start && d.end) {
-                        const s = new Date(d.start).getTime();
-                        const e = new Date(d.end).getTime();
-                        // 如果現在時間在放假區間內，且還沒收假，就不吃
-                        // 但如果是收假當餐 (等於 e)，就要吃
-                        if (target > s && target < e) return false;
-                        if (target >= e) return true; // 收假了，吃
-                        if (target <= s) return true; // 還沒走，吃
+                    // 優先檢查預放：在預放區間內就不吃
+                    if (d.preLeave && d.preStart && d.preEnd) {
+                        const ps = new Date(d.preStart).getTime();
+                        const pe = new Date(d.preEnd).getTime();
+                        if (target > ps && target < pe) return false;
+                    }
+
+                    // 再檢查正式假單：在假單區間內就不吃，但收假當餐(>=e)要吃
+                    const leaveS = ['輪休', '慰休', '喪假', '事假', '病假'];
+                    if (leaveS.includes(d.status) && d.start && d.end) {
+                        const ls = new Date(d.start).getTime();
+                        const le = new Date(d.end).getTime();
+                        if (target > ls && target < le) return false;
                     }
                     return true;
                 }).join('、');
@@ -234,17 +247,17 @@
                 `週日晚餐：${getEaters('2026-05-10T17:00')}\n` +
                 `週一早餐：${getEaters('2026-05-11T07:00')}`;
             
-            navigator.clipboard.writeText(report).then(() => alert("伙食名單已複製！"));
+            navigator.clipboard.writeText(report).then(() => alert("伙食名單已依「假單」與「預放」雙重判定複製！"));
         }
 
         function copyStatusReport() {
-            let text = "61艇動態回報\n";
+            let text = "61艇人員動態回報\n";
             ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = Object.keys(memberStates).filter(id => memberStates[id].status === s).sort();
                 if (f.length > 0) text += `${s}：${f.join('、')}\n`;
             });
             const pre = Object.keys(memberStates).filter(id => memberStates[id].preLeave).sort();
-            if (pre.length > 0) text += `預放：${pre.join('、')}\n`;
+            if (pre.length > 0) text += `預放人員：${pre.join('、')}\n`;
             navigator.clipboard.writeText(text).then(() => alert("動態已複製"));
         }
 
