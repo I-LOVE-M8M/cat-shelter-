@@ -27,7 +27,7 @@
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex justify-between items-center">
             <div>
                 <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider">載入中...</h1>
-                <div class="text-sm font-bold text-slate-300 tracking-tight italic uppercase">Ops Management</div>
+                <div class="text-sm font-bold text-slate-300 italic uppercase">Personnel & Meal</div>
             </div>
             <div class="flex gap-2">
                 <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
@@ -38,23 +38,21 @@
 
     <div class="max-w-4xl mx-auto px-3 mt-4 space-y-3" id="app"></div>
 
-    <div class="max-w-4xl mx-auto px-3 mt-6 pb-10">
-        <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700">
-            <div id="stat-board" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
-        </div>
+    <div class="max-w-4xl mx-auto px-3 mt-6 pb-10 text-[10px]">
+        <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700" id="stat-board"></div>
     </div>
 
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl">
-            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic">設定</h2>
-            <div class="space-y-4 text-sm mt-4">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic">設定時間</h2>
+            <div class="space-y-4 mt-4">
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold">開始時間</label>
+                    <label class="block text-slate-400 mb-1 font-bold italic">離營時間 (07:00放假)</label>
                     <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">結束/歸營時間</label>
-                    <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
+                    <label class="block text-slate-400 mb-1 font-bold italic">歸營時間 (07:00收假)</label>
+                    <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none border-amber-500">
                 </div>
                 <div>
                     <label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
@@ -63,10 +61,10 @@
             </div>
             <div class="flex flex-col gap-2 mt-6">
                 <div class="flex gap-2">
-                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs active:scale-95 transition-all">取消</button>
-                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs active:scale-95 transition-all">儲存</button>
+                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs">取消</button>
+                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存</button>
                 </div>
-                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95 transition-all">清除此筆時間與職代</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除紀錄</button>
             </div>
         </div>
     </div>
@@ -87,10 +85,10 @@
         const db = firebase.database();
         const memberRef = db.ref('personnel_v2');
 
-        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
         const leftTeam = ['04', '05', '06', '10', '12', '15', '16'];
         const rightTeam = ['03', '07', '08', '09', '11', '13', '14', '17'];
         const allIds = [...leftTeam, ...rightTeam].sort((a,b) => parseInt(a) - parseInt(b));
+        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
         
         let memberStates = {};
         let currentEditingId = null;
@@ -102,7 +100,6 @@
             allIds.forEach(id => {
                 const opt = document.createElement('option'); opt.value = id; opt.textContent = id;
                 deputySelect.appendChild(opt);
-                const team = leftTeam.includes(id) ? '左' : '右';
                 const card = document.createElement('div');
                 card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
@@ -110,10 +107,10 @@
                     <div class="flex justify-between items-center mb-2 px-1">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span>
-                            <span class="text-[9px] text-slate-500 font-bold">${team}班</span>
+                            <span class="text-[9px] text-slate-500 font-bold">${leftTeam.includes(id)?'左':'右'}班</span>
                             <span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">...</span>
                         </div>
-                        <button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500 transition-all">預放</button>
+                        <button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button>
                     </div>
                     <div id="detail-${id}" class="text-[8px] text-amber-500 font-bold mb-2 px-1 min-h-[14px]"></div>
                     <div class="grid grid-cols-4 gap-1">
@@ -121,8 +118,7 @@
                     </div>`;
                 app.appendChild(card);
             });
-            const baseDate = new Date(2026, 4, 5);
-            const diff = Math.floor((new Date() - baseDate) / (1000 * 60 * 60 * 24));
+            const diff = Math.floor((new Date() - new Date(2026, 4, 5)) / (1000 * 60 * 60 * 24));
             document.getElementById('today-duty').textContent = (diff % 2 === 0) ? "📅 今日當值：左班" : "📅 今日當值：右班";
         }
 
@@ -130,8 +126,8 @@
             currentEditingId = id.toString(); editMode = m;
             const d = memberStates[currentEditingId] || {};
             const nowDay = new Date().toISOString().split('T')[0];
-            document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T17:00`;
-            document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T17:00`;
+            document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T07:00`;
+            document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T07:00`;
             document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
             document.getElementById('modal-title').textContent = `${currentEditingId} 號 ${m==='pre'?'預放':'假單'}設定`;
             document.getElementById('modal').style.display = 'flex';
@@ -139,8 +135,8 @@
 
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
         function clearSpecificData() {
-            const updates = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '', preDeputy: '' } : { start: '', end: '', deputy: '' };
-            memberRef.child(currentEditingId).update(updates);
+            const up = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '', preDeputy: '' } : { start: '', end: '', deputy: '' };
+            memberRef.child(currentEditingId).update(up);
             closeModal();
         }
 
@@ -153,35 +149,35 @@
 
         function saveModal() {
             const s = document.getElementById('start-time').value, e = document.getElementById('end-time').value, d = document.getElementById('deputy').value;
-            const updates = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e, preDeputy: d } : { start: s, end: e, deputy: d };
-            memberRef.child(currentEditingId).update(updates);
+            const up = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e, preDeputy: d } : { start: s, end: e, deputy: d };
+            memberRef.child(currentEditingId).update(up);
             closeModal();
         }
 
-        memberRef.on('value', (snapshot) => {
-            memberStates = snapshot.val() || {};
+        memberRef.on('value', (sn) => {
+            memberStates = sn.val() || {};
             allIds.forEach(id => {
                 const d = memberStates[id]; if(!d) return;
                 document.getElementById(`tag-${id}`).textContent = d.status;
                 document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
                 let info = "";
-                if(d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
-                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
+                if(d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')} (代:${d.deputy||'無'})] `;
+                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')}]`;
                 document.getElementById(`detail-${id}`).textContent = info;
-                document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
+                document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold shadow-lg" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
                 const btn = document.getElementById(`btn-${id}-${d.status}`); if(btn) btn.classList.add('active-status');
             });
             const board = document.getElementById('stat-board'); board.innerHTML = "";
             statuses.forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s);
-                if(f.length>0) board.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg border border-slate-700/50"><div>${s}</div><div class="text-amber-500 font-mono">${f.join(',')}</div></div>`;
+                if(f.length>0) board.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg mb-1 flex justify-between tracking-tighter"><span>${s}</span><span class="text-amber-500 font-bold">${f.join(',')}</span></div>`;
             });
         });
 
         function copyMealReport() {
-            const getEaters = (time) => {
-                const target = new Date(time).getTime();
+            const getEaters = (timeStr, mealType) => {
+                const target = new Date(timeStr).getTime();
                 const activeDeputies = allIds.filter(id => {
                     return allIds.some(oid => {
                         const d = memberStates[oid]; if (!d) return false;
@@ -192,43 +188,40 @@
                 return allIds.filter(id => {
                     const d = memberStates[id]; if (!d || d.status === '空員') return false;
                     if (activeDeputies.includes(id)) return true;
-                    if (d.preLeave && d.preStart && d.preEnd) {
-                        if (target > new Date(d.preStart).getTime() && target < new Date(d.preEnd).getTime()) return false;
-                    }
-                    const leaveS = ['輪休', '慰休', '喪假', '事假', '病假'];
-                    if (leaveS.includes(d.status) && d.start && d.end) {
-                        if (target > new Date(d.start).getTime() && target < new Date(d.end).getTime()) return false;
+                    const s = new Date(d.start || d.preStart).getTime(), e = new Date(d.end || d.preEnd).getTime();
+                    if (s && e) {
+                        // 關鍵邏輯修正：放假當天 07:00 走，但早餐 (mealType='早') 依然要吃
+                        if (mealType === '早' && target === s) return true; 
+                        if (target >= s && target < e) return false;
                     }
                     return true;
                 }).join('、');
             };
             const times = [
-                {n: "週六早餐", t: "2026-05-09T07:00"}, {n: "週六中餐", t: "2026-05-09T11:00"}, {n: "週六晚餐", t: "2026-05-09T17:00"},
-                {n: "週日早餐", t: "2026-05-10T07:00"}, {n: "週日中餐", t: "2026-05-10T11:00"}, {n: "週日晚餐", t: "2026-05-10T17:00"},
-                {n: "週一早餐", t: "2026-05-11T07:00"}
+                {n: "週六早餐", t: "2026-05-09T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-09T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-09T17:00", m: "晚"},
+                {n: "週日早餐", t: "2026-05-10T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-10T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-10T17:00", m: "晚"},
+                {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
             ];
-            let report = "61艇伙食統計表\n\n";
-            times.forEach(tm => { report += `${tm.n}：${getEaters(tm.t)}\n`; });
-            navigator.clipboard.writeText(report).then(() => alert("伙食清單已複製！已依歸營時間與職代自動過濾。"));
+            let r = "61艇伙食統計表\n\n";
+            times.forEach(tm => { r += `${tm.n}：${getEaters(tm.t, tm.m)}\n`; });
+            navigator.clipboard.writeText(r).then(() => alert("伙食複製完成！已修正放假當天早餐邏輯。"));
         }
 
         function copyStatusReport() {
-            let text = "61艇人員動態回報\n";
+            let text = "61艇動態回報\n";
             ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s).map(id => {
                     const d = memberStates[id];
-                    const dateInfo = (d.start && d.end) ? `(${d.start.slice(8,10)}-${d.end.slice(8,10)})` : "";
-                    return id + dateInfo;
+                    return id + ((d.start && d.end) ? `(${d.start.slice(8,10)}-${d.end.slice(8,10)})` : "");
                 });
                 if (f.length > 0) text += `${s}：${f.join('、')}\n`;
             });
             const pre = allIds.filter(id => memberStates[id]?.preLeave).map(id => {
                 const d = memberStates[id];
-                const dateInfo = (d.preStart && d.preEnd) ? `(${d.preStart.slice(8,10)}-${d.preEnd.slice(8,10)})` : "";
-                return id + dateInfo;
+                return id + ((d.preStart && d.preEnd) ? `(${d.preStart.slice(8,10)}-${d.preEnd.slice(8,10)})` : "");
             });
             if (pre.length > 0) text += `預放：${pre.join('、')}\n`;
-            navigator.clipboard.writeText(text).then(() => alert("動態回報(含日期)已複製"));
+            navigator.clipboard.writeText(text).then(() => alert("動態已複製"));
         }
         window.onload = initApp;
     </script>
