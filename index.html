@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智慧伙食與人員管理系統</title>
+    <title>智慧伙食與動態管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -29,8 +29,8 @@
                 <div class="text-sm font-bold text-slate-300 italic">PERSONNEL & MEAL OPS</div>
             </div>
             <div class="flex gap-2">
-                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg active:scale-95 transition-all">📋 複製伙食</button>
-                <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg active:scale-95 transition-all">📋 複製動態</button>
+                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
+                <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製動態</button>
             </div>
         </div>
     </div>
@@ -57,7 +57,7 @@
                     <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold active:scale-95">取消</button>
                     <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold active:scale-95">儲存</button>
                 </div>
-                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除紀錄</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95">清除紀錄</button>
             </div>
         </div>
     </div>
@@ -92,7 +92,6 @@
             return new Date(str.replace(/-/g, '/').replace('T', ' ')).getTime();
         }
 
-        // 當值判定基準：5/5 為左班當值
         function getDutyByDate(dateStr) {
             const base = new Date('2026/05/05 00:00:00');
             const target = new Date(dateStr.split('T')[0].replace(/-/g, '/') + ' 00:00:00');
@@ -110,7 +109,7 @@
                 const card = document.createElement('div');
                 card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
-                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-2"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span class="text-[9px] text-slate-500 font-bold">${team}班</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">...</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-500 font-bold mb-2 px-1 min-h-[14px]"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-2"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span class="text-[9px] text-slate-500 font-bold">${team}班</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">...</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500 transition-all">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px] leading-tight"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
                 app.appendChild(card);
             });
             const today = new Date().toISOString().split('T')[0];
@@ -124,6 +123,7 @@
             document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T07:00`;
             document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T07:00`;
             document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
+            document.getElementById('modal-title').textContent = `${currentEditingId} 號設定`;
             document.getElementById('modal').style.display = 'flex';
         }
 
@@ -154,9 +154,16 @@
                 const d = memberStates[id]; if(!d) return;
                 document.getElementById(`tag-${id}`).textContent = d.status;
                 document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
+                
+                // 修正細節顯示內容
                 let info = "";
-                if(d.end) info += `[假:${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
-                if(d.preLeave) info += `[預:${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
+                if(d.start && d.end) {
+                    info += `[假:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
+                }
+                if(d.preLeave && d.preStart && d.preEnd) {
+                    info += `[預:${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
+                }
+                
                 document.getElementById(`detail-${id}`).textContent = info;
                 document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold shadow-lg" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
@@ -211,21 +218,17 @@
                     reportText += `${tm.n}：${eaters.join('、')}\n`;
                 });
 
-                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已精確計算並複製！"));
-            } catch (err) { alert("複製出錯：" + err.message); }
+                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
+            } catch (err) { alert("出錯：" + err.message); }
         }
 
         function copyStatusReport() {
             let text = "61艇人員動態回報\n";
-            // 只列出有狀態的人，移除日期括號，移除預放項目
             ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
-                const f = allIds.filter(id => memberStates[id]?.status === s).map(id => {
-                    return id; // 僅回傳號碼，不含 (日期)
-                });
+                const f = allIds.filter(id => memberStates[id]?.status === s).map(id => id);
                 if (f.length > 0) text += `${s}：${f.join('、')}\n`;
             });
-            // 根據您的需求，不再這裡額外列出「預放」
-            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製（已移除日期與預放）"));
+            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製"));
         }
         window.onload = initApp;
     </script>
