@@ -29,8 +29,8 @@
                 <div class="text-sm font-bold text-slate-300">人員動態與伙食統計</div>
             </div>
             <div class="flex gap-2">
-                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all">📋 複製伙食</button>
-                <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all">📋 複製動態</button>
+                <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
+                <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製動態</button>
             </div>
         </div>
     </div>
@@ -43,14 +43,14 @@
 
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
-            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic text-center">設定細節</h2>
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-2 italic text-center">設定</h2>
             <div class="space-y-4 mt-4">
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold italic">開始/離營 (07:00)</label>
+                    <label class="block text-slate-400 mb-1 font-bold italic">開始離營 (07:00)</label>
                     <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">結束/歸營 (07:00)</label>
+                    <label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">結束歸營 (07:00)</label>
                     <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
                 </div>
                 <div>
@@ -63,7 +63,7 @@
                     <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold text-xs">取消</button>
                     <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold text-xs">儲存</button>
                 </div>
-                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除此筆紀錄</button>
+                <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800">清除紀錄</button>
             </div>
         </div>
     </div>
@@ -93,6 +93,14 @@
         let currentEditingId = null;
         let editMode = ""; 
 
+        // 基準日 5/5 為左班當值
+        function getDutyTeam(dateStr) {
+            const base = new Date('2026-05-05');
+            const target = new Date(dateStr.split('T')[0]);
+            const diff = Math.floor((target - base) / (1000 * 60 * 60 * 24));
+            return (Math.abs(diff) % 2 === 0) ? "左" : "右";
+        }
+
         function initApp() {
             const app = document.getElementById('app');
             const deputySelect = document.getElementById('deputy');
@@ -117,21 +125,8 @@
                     </div>`;
                 app.appendChild(card);
             });
-            updateDutyUI();
-        }
-
-        // 基準判定：5/5 左班當值
-        function getDutyTeam(dateString) {
-            const base = new Date(2026, 4, 5); // 5/5
-            const target = new Date(dateString.split('T')[0]);
-            const diff = Math.round((target - base) / (1000 * 60 * 60 * 24));
-            return (Math.abs(diff) % 2 === 0) ? "左" : "右";
-        }
-
-        function updateDutyUI() {
-            const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
-            document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyTeam(todayStr)}班`;
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyTeam(today)}班`;
         }
 
         function openConfigModal(id, m) {
@@ -141,7 +136,6 @@
             document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T07:00`;
             document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T07:00`;
             document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
-            document.getElementById('modal-title').textContent = `${currentEditingId} 號設定`;
             document.getElementById('modal').style.display = 'flex';
         }
 
@@ -187,58 +181,56 @@
             });
         });
 
-        // 穩定版伙食統計
         function copyMealReport() {
-            try {
-                const times = [
-                    {n: "週六早餐", t: "2026-05-09T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-09T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-09T17:00", m: "晚"},
-                    {n: "週日早餐", t: "2026-05-10T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-10T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-10T17:00", m: "晚"},
-                    {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
-                ];
-                let reportText = "61艇伙食統計表\n\n";
+            const times = [
+                {n: "週六早餐", t: "2026-05-09T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-09T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-09T17:00", m: "晚"},
+                {n: "週日早餐", t: "2026-05-10T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-10T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-10T17:00", m: "晚"},
+                {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
+            ];
+            let report = "61艇伙食統計表\n\n";
 
-                times.forEach(tm => {
-                    const targetT = new Date(tm.t).getTime();
-                    const dutyTeam = getDutyTeam(tm.t); // 這天誰當值
-                    
-                    const eaters = allIds.filter(id => {
-                        const d = memberStates[id]; if(!d || d.status === '空員') return false;
-                        const myTeam = leftTeam.includes(id) ? "左" : "右";
+            times.forEach(tm => {
+                const targetT = new Date(tm.t).getTime();
+                const dutyT = getDutyTeam(tm.t); // 左班 或 右班
 
-                        // 檢查職代 (任何人背這天的職代都要吃)
-                        const isDeputyNow = allIds.some(oid => {
-                            const od = memberStates[oid]; if(!od) return false;
-                            const os = new Date(od.start || od.preStart).getTime();
-                            const oe = new Date(od.end || od.preEnd).getTime();
-                            return (od.deputy === id || od.preDeputy === id) && targetT >= os && targetT < oe;
-                        });
-                        if (isDeputyNow) return true;
+                const eaters = allIds.filter(id => {
+                    const d = memberStates[id]; if(!d || d.status === '空員') return false;
+                    const myT = leftTeam.includes(id) ? "左" : "右";
 
-                        // 檢查假單/預放時間
-                        const s = (d.start || d.preStart) ? new Date(d.start || d.preStart).getTime() : 0;
-                        const e = (d.end || d.preEnd) ? new Date(d.end || d.preEnd).getTime() : 0;
-
-                        if (s > 0 && e > 0) {
-                            if (tm.m === '早' && targetT === s) return true; // 放假當天早餐
-                            if (targetT >= s && targetT < e) return false;    // 假期中不吃
-                            return true; // 假期外吃
-                        }
-
-                        // 無時間設定：如果我是當值班就吃，放假班就不吃
-                        return myTeam === dutyTeam;
+                    // 1. 職代身分檢查 (最高優先權)
+                    const isDeputy = allIds.some(oid => {
+                        const od = memberStates[oid]; if(!od) return false;
+                        const os = new Date(od.start || od.preStart).getTime();
+                        const oe = new Date(od.end || od.preEnd).getTime();
+                        return (od.deputy === id || od.preDeputy === id) && targetT >= os && targetT < oe;
                     });
-                    
-                    reportText += `${tm.n}：${eaters.join('、')}\n`;
-                });
+                    if (isDeputy) return true;
 
-                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
-            } catch (err) {
-                alert("複製出錯了：" + err.message);
-            }
+                    // 2. 假單時間檢查
+                    const s = new Date(d.start || d.preStart).getTime();
+                    const e = new Date(d.end || d.preEnd).getTime();
+                    if (s > 0 && e > 0) {
+                        if (tm.m === '早' && targetT === s) return true;
+                        if (targetT >= s && targetT < e) return false;
+                    }
+
+                    // 3. 班別當值檢查 (核心修正)
+                    // 如果這天不是我的當值班，我就不吃 (除非是放假當天早餐已在上面判定過)
+                    if (myT !== dutyT) return false;
+
+                    // 4. 狀態檢查
+                    const leaveS = ['輪休', '慰休', '喪假', '事假', '病假', '外宿', '放假班'];
+                    if (leaveS.includes(d.status) && s === 0) return false;
+
+                    return true;
+                });
+                report += `${tm.n}：${eaters.join('、')}\n`;
+            });
+            navigator.clipboard.writeText(report).then(() => alert("伙食名單已正確過濾「放假班」！"));
         }
 
         function copyStatusReport() {
-            let text = "61艇人員動態回報\n";
+            let text = "61艇動態回報\n";
             ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s).map(id => {
                     const d = memberStates[id];
