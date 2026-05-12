@@ -13,7 +13,7 @@
         .status-btn { transition: all 0.1s; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
         .active-status { border: 2px solid #fbbf24 !important; background-color: #fbbf24 !important; color: #000 !important; font-weight: bold; }
         
-        /* 狀態顏色定義 */
+        /* 狀態顏色 */
         .bg-正常, .bg-開船, .bg-駐艇, .bg-值更, .bg-碼巡, .bg-洽公, .bg-幫廚, .bg-補眠 { background-color: #1e293b; border: 1px solid #334155; }
         .bg-外宿, .bg-放假班 { background-color: #f59e0b; }
         .bg-輪休, .bg-慰休, .bg-喪假, .bg-事假, .bg-病假 { background-color: #ef4444; }
@@ -41,8 +41,7 @@
                     </div>
                     <div class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
                         ⚓ 乾潮：<span id="low-tide" class="text-emerald-400">讀取中...</span>
-                        <!-- 使用你提供的最新精確網址 -->
-                        <a href="https://www.cwa.gov.tw/V8/C/M/tide.html?NSeaID=NSea06" target="_blank" class="ml-1 text-[8px] bg-indigo-900/50 px-1.5 py-0.5 rounded border border-indigo-500 text-indigo-300">🔗 手動查詢</a>
+                        <a href="https://www.cwa.gov.tw/V8/C/M/tide.html?NSeaID=NSea06" target="_blank" class="ml-1 text-[8px] bg-slate-700 px-1 rounded text-slate-400">🔗 氣象署</a>
                     </div>
                     
                     <div class="text-[11px] font-bold text-slate-300 italic pt-1">PERSONNEL & MEAL OPS</div>
@@ -71,7 +70,6 @@
         <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700" id="stat-board"></div>
     </div>
 
-    <!-- 設定視窗 -->
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
             <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center italic">設定詳情</h2>
@@ -135,29 +133,38 @@
         let currentEditingId = null;
         let editMode = ""; 
 
+        // 採用最穩定的 Open-Meteo 系列 API
         async function fetchAstroData() {
             const lat = 22.70, lng = 120.27;
-            try {
-                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=sunset&timezone=Asia%2FTaipei`);
-                const data = await res.json();
-                document.getElementById('sunset-time').textContent = data?.daily?.sunset[0]?.split('T')[1] || "請點手動查詢";
-            } catch (e) { document.getElementById('sunset-time').textContent = "手動查詢"; }
 
-            const proxy = "https://api.allorigins.win/get?url=";
+            // 1. 抓取日落 (Open-Meteo Forecast API)
             try {
-                const tideUrl = `${proxy}${encodeURIComponent(`https://api.marea.hu/v1/tides?lat=${lat}&lon=${lng}`)}`;
-                const res = await fetch(tideUrl);
-                const raw = await res.json();
-                const data = JSON.parse(raw.contents);
-                if (data?.extremes) {
-                    const highs = data.extremes.filter(e => e.type === 'High').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
-                    const lows = data.extremes.filter(e => e.type === 'Low').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
-                    document.getElementById('high-tide').textContent = highs.join(', ') || "手動查詢";
-                    document.getElementById('low-tide').textContent = lows.join(', ') || "手動查詢";
-                } else { throw new Error(); }
+                const sunRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=sunset&timezone=Asia%2FTaipei`);
+                const sunData = await sunRes.json();
+                if (sunData?.daily?.sunset) {
+                    document.getElementById('sunset-time').textContent = sunData.daily.sunset[0].split('T')[1];
+                }
+            } catch (e) { document.getElementById('sunset-time').textContent = "讀取失敗"; }
+
+            // 2. 抓取潮汐 (Open-Meteo Marine API - 直接提供滿/乾潮預報時間)
+            try {
+                const tideRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&daily=tide_height_max_time,tide_height_min_time&timezone=Asia%2FTaipei`);
+                const tideData = await tideRes.json();
+                
+                if (tideData?.daily) {
+                    // 滿潮時間列表
+                    const highs = tideData.daily.tide_height_max_time[0].split('T')[1];
+                    const lows = tideData.daily.tide_height_min_time[0].split('T')[1];
+                    
+                    document.getElementById('high-tide').textContent = highs || "無數據";
+                    document.getElementById('low-tide').textContent = lows || "無數據";
+                } else {
+                    document.getElementById('high-tide').textContent = "API維修中";
+                    document.getElementById('low-tide').textContent = "API維修中";
+                }
             } catch (e) {
-                document.getElementById('high-tide').textContent = "請點手動查詢";
-                document.getElementById('low-tide').textContent = "請點手動查詢";
+                document.getElementById('high-tide').textContent = "網路受阻";
+                document.getElementById('low-tide').textContent = "網路受阻";
             }
         }
 
