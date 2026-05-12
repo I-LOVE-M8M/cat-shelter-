@@ -18,7 +18,7 @@
         .bg-外宿, .bg-放假班 { background-color: #f59e0b; }
         .bg-輪休, .bg-慰休, .bg-喪假, .bg-事假, .bg-病假 { background-color: #ef4444; }
         .bg-受訓 { background-color: #3b82f6; }
-        .bg-公假 { background-color: #a855f7; } /* 公假設為紫色 */
+        .bg-公假 { background-color: #a855f7; }
         .bg-空員 { background-color: #334155; opacity: 0.5; }
         
         #modal { display: none; background: rgba(0,0,0,0.9); }
@@ -86,8 +86,6 @@
         const leftTeam = ['04', '05', '06', '10', '12', '15', '16'];
         const rightTeam = ['03', '07', '08', '09', '11', '13', '14', '17'];
         const allIds = [...leftTeam, ...rightTeam].sort((a,b) => parseInt(a) - parseInt(b));
-        
-        // 狀態清單，加入「公假」
         const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '受訓', '公假', '空員'];
         
         let memberStates = {};
@@ -127,10 +125,7 @@
             currentEditingId = id.toString(); editMode = m;
             const d = memberStates[currentEditingId] || {};
             const nowDay = new Date().toISOString().split('T')[0];
-            
-            // 邏輯判定預設時間：僅輪休為 17:00，其餘皆為 07:00
             let defaultHour = (m !== 'pre' && d.status === '輪休') ? "17:00" : "07:00";
-            
             document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T${defaultHour}`;
             document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T${defaultHour}`;
             document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
@@ -162,8 +157,40 @@
             closeModal();
         }
 
+        // 自動回歸核心邏輯
+        function autoRevertStatus(states) {
+            const now = new Date().getTime();
+            Object.keys(states).forEach(id => {
+                const d = states[id];
+                // 排除「正常」與「空員」
+                if (d.status === '正常' || d.status === '空員') return;
+
+                // 檢查結束時間（優先檢查正式假，再檢查預放）
+                const endTime = parseToTime(d.end || d.preEnd);
+                
+                if (endTime > 0 && now >= endTime) {
+                    // 時間到了，對 Firebase 進行更新
+                    memberRef.child(id).update({
+                        status: '正常',
+                        start: '',
+                        end: '',
+                        deputy: '',
+                        preLeave: false,
+                        preStart: '',
+                        preEnd: '',
+                        preDeputy: ''
+                    });
+                    console.log(`${id} 號歸營時間已到，已自動恢復正常狀態。`);
+                }
+            });
+        }
+
         memberRef.on('value', (sn) => {
             memberStates = sn.val() || {};
+            
+            // 每次資料更新時都跑一次自動回歸檢查
+            autoRevertStatus(memberStates);
+
             allIds.forEach(id => {
                 const d = memberStates[id]; if(!d) return;
                 document.getElementById(`tag-${id}`).textContent = d.status;
@@ -198,15 +225,12 @@
                     {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
                 ];
                 let reportText = "61艇伙食統計表\n\n";
-
                 times.forEach(tm => {
                     const targetT = parseToTime(tm.t);
                     const dutyTeam = getDutyByDate(tm.t);
-                    
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
-                        const myTeam = leftTeam.includes(id) ? "左" : "營"; // 修正為右/左判定
-
+                        const myT = leftTeam.includes(id) ? "左" : "右";
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
                             const st = parseToTime(od.start), et = parseToTime(od.end);
@@ -216,27 +240,19 @@
                             return isOfficialDep || isPreDep;
                         });
                         if (isDeputyNow) return true;
-
                         const checkLeave = (start, end) => {
                             if(!start || !end) return false;
                             const sT = parseToTime(start), eT = parseToTime(end);
                             if (tm.m === '早' && targetT === sT) return false; 
                             return (targetT >= sT && targetT < eT);
                         };
-                        
-                        // 伙食排除邏輯加入公假
                         if ((d.status === '受訓' || d.status === '公假') && checkLeave(d.start, d.end)) return false;
                         if (checkLeave(d.start, d.end) || checkLeave(d.preStart, d.preEnd)) return false;
-
                         if (tm.m === '早') return true;
-                        
-                        const myT = leftTeam.includes(id) ? "左" : "右";
                         return myT === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
-                    
                     reportText += `${tm.n}：${eaters.join('、')}\n`;
                 });
-
                 navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
             } catch (err) { alert("出錯：" + err.message); }
         }
