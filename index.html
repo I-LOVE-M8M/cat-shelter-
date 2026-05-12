@@ -128,7 +128,6 @@
         let currentEditingId = null;
         let editMode = ""; 
 
-        // 只保留穩定的日落抓取
         async function fetchSunset() {
             const lat = 22.70, lng = 120.27;
             try {
@@ -296,7 +295,9 @@
                         if (tm.m === '早') return true;
                         return (leftTeam.includes(id) ? "左" : "右") === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
-                    reportText += `${tm.n}：${eaters.join('、')}\n`;
+                    
+                    // 新增：顯示人數 (xx員)
+                    reportText += `${tm.n} (${eaters.length}員)：${eaters.join('、')}\n`;
                 });
                 navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
             } catch (err) { alert("出錯：" + err.message); }
