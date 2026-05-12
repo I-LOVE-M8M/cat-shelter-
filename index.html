@@ -40,6 +40,8 @@
                     </div>
                     <div class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
                         ⚓ 乾潮：<span id="low-tide" class="text-emerald-400">讀取中...</span>
+                        <!-- 備用連結按鈕 -->
+                        <a href="https://www.cwa.gov.tw/V8/C/M/Tide/Tide_U.html" target="_blank" class="ml-1 text-[8px] bg-slate-700 px-1 rounded text-slate-300">🔗 氣象署查詢</a>
                     </div>
                     
                     <div class="text-[11px] font-bold text-slate-300 italic pt-1">PERSONNEL & MEAL OPS</div>
@@ -131,37 +133,33 @@
         let currentEditingId = null;
         let editMode = ""; 
 
-        // 強化版天文數據抓取
+        // 改良版天文抓取：使用 CORS 代理
         async function fetchAstroData() {
             const lat = 22.70, lng = 120.27;
+            const proxy = "https://corsproxy.io/?";
 
-            // 1. 日落
+            // 1. 日落 (Open-Meteo)
             try {
-                const sunRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=sunset&timezone=Asia%2FTaipei`);
-                const sunData = await sunRes.json();
-                document.getElementById('sunset-time').textContent = sunData?.daily?.sunset[0]?.split('T')[1] || "無資料";
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=sunset&timezone=Asia%2FTaipei`);
+                const data = await res.json();
+                document.getElementById('sunset-time').textContent = data?.daily?.sunset[0]?.split('T')[1] || "無資料";
             } catch (e) { document.getElementById('sunset-time').textContent = "讀取失敗"; }
 
-            // 2. 潮汐 (增加 Timeout 與格式容錯)
+            // 2. 潮汐 (Marea + Proxy)
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                
-                const tideRes = await fetch(`https://api.marea.hu/v1/tides?lat=${lat}&lon=${lng}`, { signal: controller.signal });
-                const tideData = await tideRes.json();
-                clearTimeout(timeoutId);
+                const tideUrl = `${proxy}${encodeURIComponent(`https://api.marea.hu/v1/tides?lat=${lat}&lon=${lng}`)}`;
+                const res = await fetch(tideUrl);
+                const data = await res.json();
 
-                if (tideData?.extremes) {
-                    const highs = tideData.extremes.filter(e => e.type === 'High').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
-                    const lows = tideData.extremes.filter(e => e.type === 'Low').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
-                    document.getElementById('high-tide').textContent = highs.join(', ') || "今日無滿潮";
-                    document.getElementById('low-tide').textContent = lows.join(', ') || "今日無乾潮";
-                } else {
-                    throw new Error();
-                }
+                if (data?.extremes) {
+                    const highs = data.extremes.filter(e => e.type === 'High').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
+                    const lows = data.extremes.filter(e => e.type === 'Low').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
+                    document.getElementById('high-tide').textContent = highs.join(', ') || "無滿潮";
+                    document.getElementById('low-tide').textContent = lows.join(', ') || "無乾潮";
+                } else { throw new Error(); }
             } catch (e) {
-                document.getElementById('high-tide').textContent = "連線逾時";
-                document.getElementById('low-tide').textContent = "連線逾時";
+                document.getElementById('high-tide').textContent = "逾時或阻擋";
+                document.getElementById('low-tide').textContent = "逾時或阻擋";
             }
         }
 
@@ -293,9 +291,9 @@
         function copyMealReport() {
             try {
                 const times = [
-                    {n: "週六早餐", t: "2026-05-09T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-09T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-09T17:00", m: "晚"},
-                    {n: "週日早餐", t: "2026-05-10T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-10T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-10T17:00", m: "晚"},
-                    {n: "週一早餐", t: "2026-05-11T07:00", m: "早"}
+                    {n: "週六早餐", t: "2026-05-16T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-16T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-16T17:00", m: "晚"},
+                    {n: "週日早餐", t: "2026-05-17T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-17T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-17T17:00", m: "晚"},
+                    {n: "週一早餐", t: "2026-05-18T07:00", m: "早"}
                 ];
                 let reportText = "61艇伙食統計表\n\n";
                 times.forEach(tm => {
