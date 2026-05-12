@@ -28,18 +28,28 @@
 
     <div class="max-w-4xl mx-auto px-3 pt-6 sticky top-0 z-40">
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex flex-col gap-3">
-            <div class="flex justify-between items-center px-2">
-                <div>
+            <div class="flex justify-between items-start px-2">
+                <div class="flex-1">
                     <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider uppercase">載入中...</h1>
-                    <!-- 新增：日落時間顯示 -->
-                    <div id="sunset-info" class="text-[9px] text-slate-400 font-bold flex items-center gap-1 mt-0.5">
-                        🌇 左營日落：<span id="sunset-time" class="text-rose-400">計算中...</span>
+                    
+                    <!-- 天文與環境資訊區 -->
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                        <div id="sunset-info" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                            🌇 日落：<span id="sunset-time" class="text-rose-400">...</span>
+                        </div>
+                        <div id="tide-info" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                            🌊 滿潮：<span id="high-tide" class="text-cyan-400">...</span>
+                        </div>
+                        <div id="tide-info-low" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                            ⚓ 乾潮：<span id="low-tide" class="text-emerald-400">...</span>
+                        </div>
                     </div>
-                    <div class="text-[11px] font-bold text-slate-300 italic mt-1">PERSONNEL & MEAL OPS</div>
+                    
+                    <div class="text-[11px] font-bold text-slate-300 italic mt-2">PERSONNEL & MEAL OPS</div>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
-                    <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-3 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製動態</button>
+                    <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
+                    <button onclick="copyStatusReport()" class="bg-emerald-600 hover:bg-emerald-500 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製動態</button>
                 </div>
             </div>
             
@@ -81,7 +91,7 @@
                 </div>
                 <div id="reason-container">
                     <label class="block text-slate-400 mb-1 font-bold">原因 (輪/慰休免填)</label>
-                    <input type="text" id="leave-reason" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none" placeholder="例如：支援、受訓名...">
+                    <input type="text" id="leave-reason" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none" placeholder="例如：回診、支援...">
                 </div>
                 <div><label class="block text-slate-400 mb-1 font-bold">開始/離營時間</label>
                 <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
@@ -125,20 +135,28 @@
         let currentEditingId = null;
         let editMode = ""; 
 
-        // 核心功能：抓取左營區日落時間
-        async function fetchSunset() {
+        // 核心功能：天文數據抓取 (日落與潮汐)
+        async function fetchAstroData() {
             try {
-                // 左營經緯度: 22.70, 120.29
-                const res = await fetch('https://api.sunrise-sunset.org/json?lat=22.70&lng=120.29&formatted=0');
-                const data = await res.json();
-                if (data.status === 'OK') {
-                    const sunsetUTC = new Date(data.results.sunset);
-                    // 轉換為在地時間 (UTC+8)
-                    const sunsetLocal = sunsetUTC.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-                    document.getElementById('sunset-time').textContent = sunsetLocal;
+                // 1. 抓取日落
+                const sunRes = await fetch('https://api.sunrise-sunset.org/json?lat=22.70&lng=120.29&formatted=0');
+                const sunData = await sunRes.json();
+                if (sunData.status === 'OK') {
+                    const sunsetUTC = new Date(sunData.results.sunset);
+                    document.getElementById('sunset-time').textContent = sunsetUTC.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                }
+
+                // 2. 抓取潮汐 (使用 Marea API 作為免費來源)
+                const tideRes = await fetch('https://api.marea.hu/v1/tides?lat=22.70&lon=120.29');
+                const tideData = await tideRes.json();
+                if (tideData && tideData.extremes) {
+                    const highs = tideData.extremes.filter(e => e.type === 'High').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
+                    const lows = tideData.extremes.filter(e => e.type === 'Low').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
+                    document.getElementById('high-tide').textContent = highs.join(', ');
+                    document.getElementById('low-tide').textContent = lows.join(', ');
                 }
             } catch (err) {
-                document.getElementById('sunset-time').textContent = "抓取失敗";
+                console.error("Astro Data Error:", err);
             }
         }
 
@@ -176,7 +194,7 @@
             });
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyByDate(today)}班`;
-            fetchSunset(); // 啟動抓取日落
+            fetchAstroData();
         }
 
         function openConfigModal(id, m) {
@@ -258,7 +276,7 @@
                     const rText = (d.preReason && d.preStatus !== '輪休' && d.preStatus !== '慰休') ? `: ${d.preReason}` : "";
                     return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center">
                         <span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus}${rText})</span></span>
-                        <span class="text-slate-400 font-mono">${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}</span>
+                        <span class="text-slate-400 font-mono text-[8px]">${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}</span>
                     </div>`;
                 }).join('');
             } else preLeaveList.innerHTML = `<div class="text-slate-500 italic">目前無預放人員</div>`;
@@ -326,7 +344,7 @@
 
         function copyStatusReport() {
             let text = "61艇人員動態回報\n";
-            ['受訓', '公假', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病長'].forEach(s => {
+            ['受訓', '公假', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s).map(id => id);
                 if (f.length > 0) text += `${s}${f.length}員：${f.join('、')}\n`;
             });
