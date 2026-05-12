@@ -12,10 +12,14 @@
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; }
         .status-btn { transition: all 0.1s; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
         .active-status { border: 2px solid #fbbf24 !important; background-color: #fbbf24 !important; color: #000 !important; font-weight: bold; }
+        
+        /* 狀態顏色定義 */
         .bg-正常, .bg-開船, .bg-駐艇, .bg-值更, .bg-碼巡, .bg-洽公, .bg-幫廚, .bg-補眠 { background-color: #1e293b; border: 1px solid #334155; }
         .bg-外宿, .bg-放假班 { background-color: #f59e0b; }
         .bg-輪休, .bg-慰休, .bg-喪假, .bg-事假, .bg-病假 { background-color: #ef4444; }
+        .bg-受訓 { background-color: #3b82f6; } /* 受訓設為藍色 */
         .bg-空員 { background-color: #334155; opacity: 0.5; }
+        
         #modal { display: none; background: rgba(0,0,0,0.9); }
         .pre-leave-active { background-color: #f43f5e !important; border: 2px solid #fb7185 !important; color: white !important; }
     </style>
@@ -45,17 +49,17 @@
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
             <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center italic">時間與職代設定</h2>
             <div class="space-y-4 mt-4">
-                <div><label class="block text-slate-400 mb-1 font-bold">開始/離營 (07:00放假)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold">開始/離營 (07:00)</label>
                 <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
-                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">歸營 (07:00收假)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">歸營 (07:00)</label>
                 <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
                 <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select></div>
             </div>
             <div class="flex flex-col gap-2 mt-6">
                 <div class="flex gap-2">
-                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold active:scale-95">取消</button>
-                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold active:scale-95">儲存</button>
+                    <button onclick="closeModal()" class="flex-1 bg-slate-700 py-2 rounded-xl font-bold active:scale-95 transition-all">取消</button>
+                    <button onclick="saveModal()" class="flex-1 bg-indigo-600 py-2 rounded-xl font-bold active:scale-95 transition-all">儲存</button>
                 </div>
                 <button onclick="clearSpecificData()" class="w-full bg-rose-900/40 text-rose-300 py-2 rounded-xl font-bold text-[10px] border border-rose-800 active:scale-95">清除紀錄</button>
             </div>
@@ -81,7 +85,9 @@
         const leftTeam = ['04', '05', '06', '10', '12', '15', '16'];
         const rightTeam = ['03', '07', '08', '09', '11', '13', '14', '17'];
         const allIds = [...leftTeam, ...rightTeam].sort((a,b) => parseInt(a) - parseInt(b));
-        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '空員'];
+        
+        // 更新狀態列表，加入「受訓」
+        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '受訓', '空員'];
         
         let memberStates = {};
         let currentEditingId = null;
@@ -128,6 +134,7 @@
         }
 
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
+        
         function clearSpecificData() {
             const up = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '', preDeputy: '' } : { start: '', end: '', deputy: '' };
             memberRef.child(currentEditingId).update(up);
@@ -135,10 +142,13 @@
         }
 
         function handleStatusClick(id, s) {
-            if (['輪休', '慰休', '喪假', '事假', '病假'].includes(s)) {
+            // 受訓、輪休等狀態需要設定時間
+            if (['輪休', '慰休', '喪假', '事假', '病假', '受訓'].includes(s)) {
                 memberRef.child(id).update({ status: s });
                 openConfigModal(id, 'leave');
-            } else { memberRef.child(id).update({ status: s }); }
+            } else { 
+                memberRef.child(id).update({ status: s }); 
+            }
         }
 
         function saveModal() {
@@ -157,10 +167,10 @@
                 
                 let info = "";
                 if(d.start && d.end) {
-                    info += `[假:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
+                    info += `[時:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')} 代:${d.deputy||'無'}] `;
                 }
                 if(d.preLeave && d.preStart && d.preEnd) {
-                    info += `[預:${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')} 代:${d.preDeputy||'無'}]`;
+                    info += `[預:${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}]`;
                 }
                 
                 document.getElementById(`detail-${id}`).textContent = info;
@@ -168,6 +178,8 @@
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
                 const btn = document.getElementById(`btn-${id}-${d.status}`); if(btn) btn.classList.add('active-status');
             });
+            
+            // 下方統計版塊
             const board = document.getElementById('stat-board'); board.innerHTML = "";
             statuses.forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s);
@@ -208,6 +220,9 @@
                             if (tm.m === '早' && targetT === sT) return false; 
                             return (targetT >= sT && targetT < eT);
                         };
+                        
+                        // 受訓期間不吃伙食
+                        if (d.status === '受訓' && checkLeave(d.start, d.end)) return false;
                         if (checkLeave(d.start, d.end) || checkLeave(d.preStart, d.preEnd)) return false;
 
                         if (tm.m === '早') return true;
@@ -217,18 +232,18 @@
                     reportText += `${tm.n}：${eaters.join('、')}\n`;
                 });
 
-                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
+                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！已排除受訓與放假人員。"));
             } catch (err) { alert("出錯：" + err.message); }
         }
 
         function copyStatusReport() {
             let text = "61艇人員動態回報\n";
-            ['外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
+            // 回報清單加入受訓
+            ['受訓', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s).map(id => id);
-                // 這裡加入了人數統計 "${f.length}員"
                 if (f.length > 0) text += `${s}${f.length}員：${f.join('、')}\n`;
             });
-            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製（含人數統計）"));
+            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製（含受訓人員）"));
         }
         window.onload = initApp;
     </script>
