@@ -17,7 +17,8 @@
         .bg-正常, .bg-開船, .bg-駐艇, .bg-值更, .bg-碼巡, .bg-洽公, .bg-幫廚, .bg-補眠 { background-color: #1e293b; border: 1px solid #334155; }
         .bg-外宿, .bg-放假班 { background-color: #f59e0b; }
         .bg-輪休, .bg-慰休, .bg-喪假, .bg-事假, .bg-病假 { background-color: #ef4444; }
-        .bg-受訓 { background-color: #3b82f6; } /* 受訓設為藍色 */
+        .bg-受訓 { background-color: #3b82f6; }
+        .bg-公假 { background-color: #a855f7; } /* 公假設為紫色 */
         .bg-空員 { background-color: #334155; opacity: 0.5; }
         
         #modal { display: none; background: rgba(0,0,0,0.9); }
@@ -49,9 +50,9 @@
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
             <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center italic">時間與職代設定</h2>
             <div class="space-y-4 mt-4">
-                <div><label class="block text-slate-400 mb-1 font-bold">開始/離營 (07:00)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold">開始/離營時間</label>
                 <input type="datetime-local" id="start-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
-                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">歸營 (07:00)</label>
+                <div><label class="block text-slate-400 mb-1 font-bold italic underline decoration-amber-500">結束/歸營時間</label>
                 <input type="datetime-local" id="end-time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1 font-bold">職務代理人</label>
                 <select id="deputy" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select></div>
@@ -86,8 +87,8 @@
         const rightTeam = ['03', '07', '08', '09', '11', '13', '14', '17'];
         const allIds = [...leftTeam, ...rightTeam].sort((a,b) => parseInt(a) - parseInt(b));
         
-        // 更新狀態列表，加入「受訓」
-        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '受訓', '空員'];
+        // 狀態清單，加入「公假」
+        const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '受訓', '公假', '空員'];
         
         let memberStates = {};
         let currentEditingId = null;
@@ -126,8 +127,12 @@
             currentEditingId = id.toString(); editMode = m;
             const d = memberStates[currentEditingId] || {};
             const nowDay = new Date().toISOString().split('T')[0];
-            document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T07:00`;
-            document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T07:00`;
+            
+            // 邏輯判定預設時間：僅輪休為 17:00，其餘皆為 07:00
+            let defaultHour = (m !== 'pre' && d.status === '輪休') ? "17:00" : "07:00";
+            
+            document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T${defaultHour}`;
+            document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T${defaultHour}`;
             document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
             document.getElementById('modal-title').textContent = `${currentEditingId} 號設定`;
             document.getElementById('modal').style.display = 'flex';
@@ -142,8 +147,7 @@
         }
 
         function handleStatusClick(id, s) {
-            // 受訓、輪休等狀態需要設定時間
-            if (['輪休', '慰休', '喪假', '事假', '病假', '受訓'].includes(s)) {
+            if (['輪休', '慰休', '喪假', '事假', '病假', '受訓', '公假'].includes(s)) {
                 memberRef.child(id).update({ status: s });
                 openConfigModal(id, 'leave');
             } else { 
@@ -179,7 +183,6 @@
                 const btn = document.getElementById(`btn-${id}-${d.status}`); if(btn) btn.classList.add('active-status');
             });
             
-            // 下方統計版塊
             const board = document.getElementById('stat-board'); board.innerHTML = "";
             statuses.forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s);
@@ -202,7 +205,7 @@
                     
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
-                        const myTeam = leftTeam.includes(id) ? "左" : "右";
+                        const myTeam = leftTeam.includes(id) ? "左" : "營"; // 修正為右/左判定
 
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
@@ -221,29 +224,30 @@
                             return (targetT >= sT && targetT < eT);
                         };
                         
-                        // 受訓期間不吃伙食
-                        if (d.status === '受訓' && checkLeave(d.start, d.end)) return false;
+                        // 伙食排除邏輯加入公假
+                        if ((d.status === '受訓' || d.status === '公假') && checkLeave(d.start, d.end)) return false;
                         if (checkLeave(d.start, d.end) || checkLeave(d.preStart, d.preEnd)) return false;
 
                         if (tm.m === '早') return true;
-                        return myTeam === dutyTeam;
+                        
+                        const myT = leftTeam.includes(id) ? "左" : "右";
+                        return myT === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
                     
                     reportText += `${tm.n}：${eaters.join('、')}\n`;
                 });
 
-                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！已排除受訓與放假人員。"));
+                navigator.clipboard.writeText(reportText).then(() => alert("伙食名單已複製！"));
             } catch (err) { alert("出錯：" + err.message); }
         }
 
         function copyStatusReport() {
             let text = "61艇人員動態回報\n";
-            // 回報清單加入受訓
-            ['受訓', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
+            ['受訓', '公假', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s).map(id => id);
                 if (f.length > 0) text += `${s}${f.length}員：${f.join('、')}\n`;
             });
-            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製（含受訓人員）"));
+            navigator.clipboard.writeText(text).then(() => alert("動態回報已複製"));
         }
         window.onload = initApp;
     </script>
