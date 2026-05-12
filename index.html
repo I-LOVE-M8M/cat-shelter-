@@ -29,23 +29,20 @@
     <div class="max-w-4xl mx-auto px-3 pt-6 sticky top-0 z-40">
         <div class="bg-slate-800 rounded-3xl p-4 shadow-2xl border border-slate-700 flex flex-col gap-3">
             <div class="flex justify-between items-start px-2">
-                <div class="flex-1">
+                <div class="space-y-0.5">
                     <h1 id="today-duty" class="text-amber-400 text-[10px] font-bold italic tracking-wider uppercase">載入中...</h1>
                     
-                    <!-- 天文與環境資訊區 -->
-                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                        <div id="sunset-info" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
-                            🌇 日落：<span id="sunset-time" class="text-rose-400">...</span>
-                        </div>
-                        <div id="tide-info" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
-                            🌊 滿潮：<span id="high-tide" class="text-cyan-400">...</span>
-                        </div>
-                        <div id="tide-info-low" class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
-                            ⚓ 乾潮：<span id="low-tide" class="text-emerald-400">...</span>
-                        </div>
+                    <div class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                        🌇 日落：<span id="sunset-time" class="text-rose-400">讀取中...</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                        🌊 滿潮：<span id="high-tide" class="text-cyan-400">讀取中...</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+                        ⚓ 乾潮：<span id="low-tide" class="text-emerald-400">讀取中...</span>
                     </div>
                     
-                    <div class="text-[11px] font-bold text-slate-300 italic mt-2">PERSONNEL & MEAL OPS</div>
+                    <div class="text-[11px] font-bold text-slate-300 italic pt-1">PERSONNEL & MEAL OPS</div>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="copyMealReport()" class="bg-blue-600 hover:bg-blue-500 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
@@ -71,7 +68,6 @@
         <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-700" id="stat-board"></div>
     </div>
 
-    <!-- 設定視窗 -->
     <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-600 shadow-2xl text-sm">
             <h2 id="modal-title" class="text-xl font-bold text-white mb-2 text-center italic">設定詳情</h2>
@@ -135,28 +131,37 @@
         let currentEditingId = null;
         let editMode = ""; 
 
-        // 核心功能：天文數據抓取 (日落與潮汐)
+        // 強化版天文數據抓取
         async function fetchAstroData() {
-            try {
-                // 1. 抓取日落
-                const sunRes = await fetch('https://api.sunrise-sunset.org/json?lat=22.70&lng=120.29&formatted=0');
-                const sunData = await sunRes.json();
-                if (sunData.status === 'OK') {
-                    const sunsetUTC = new Date(sunData.results.sunset);
-                    document.getElementById('sunset-time').textContent = sunsetUTC.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-                }
+            const lat = 22.70, lng = 120.27;
 
-                // 2. 抓取潮汐 (使用 Marea API 作為免費來源)
-                const tideRes = await fetch('https://api.marea.hu/v1/tides?lat=22.70&lon=120.29');
+            // 1. 日落
+            try {
+                const sunRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=sunset&timezone=Asia%2FTaipei`);
+                const sunData = await sunRes.json();
+                document.getElementById('sunset-time').textContent = sunData?.daily?.sunset[0]?.split('T')[1] || "無資料";
+            } catch (e) { document.getElementById('sunset-time').textContent = "讀取失敗"; }
+
+            // 2. 潮汐 (增加 Timeout 與格式容錯)
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const tideRes = await fetch(`https://api.marea.hu/v1/tides?lat=${lat}&lon=${lng}`, { signal: controller.signal });
                 const tideData = await tideRes.json();
-                if (tideData && tideData.extremes) {
+                clearTimeout(timeoutId);
+
+                if (tideData?.extremes) {
                     const highs = tideData.extremes.filter(e => e.type === 'High').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
                     const lows = tideData.extremes.filter(e => e.type === 'Low').map(e => new Date(e.timestamp * 1000).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }));
-                    document.getElementById('high-tide').textContent = highs.join(', ');
-                    document.getElementById('low-tide').textContent = lows.join(', ');
+                    document.getElementById('high-tide').textContent = highs.join(', ') || "今日無滿潮";
+                    document.getElementById('low-tide').textContent = lows.join(', ') || "今日無乾潮";
+                } else {
+                    throw new Error();
                 }
-            } catch (err) {
-                console.error("Astro Data Error:", err);
+            } catch (e) {
+                document.getElementById('high-tide').textContent = "連線逾時";
+                document.getElementById('low-tide').textContent = "連線逾時";
             }
         }
 
@@ -173,7 +178,7 @@
         }
 
         function toggleReasonField() {
-            const currentStatus = (editMode === 'pre') ? document.getElementById('pre-status-select').value : memberStates[currentEditingId].status;
+            const currentStatus = (editMode === 'pre') ? document.getElementById('pre-status-select').value : memberStates[currentEditingId]?.status;
             const container = document.getElementById('reason-container');
             if (currentStatus === '輪休' || currentStatus === '慰休') container.style.display = 'none';
             else container.style.display = 'block';
@@ -185,11 +190,10 @@
             allIds.forEach(id => {
                 const opt = document.createElement('option'); opt.value = id; opt.textContent = id;
                 deputySelect.appendChild(opt);
-                const team = leftTeam.includes(id) ? '左' : '右';
                 const card = document.createElement('div');
                 card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
-                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-2"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span class="text-[9px] text-slate-500 font-bold">${team}班</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">...</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500 transition-all active:scale-95">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px] leading-tight"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-2"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">正常</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500 transition-all active:scale-95">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px] leading-tight"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
                 app.appendChild(card);
             });
             const today = new Date().toISOString().split('T')[0];
@@ -209,16 +213,13 @@
             document.getElementById('pre-status-select').value = d.preStatus || "輪休";
             document.getElementById('leave-reason').value = (m==='pre' ? d.preReason : d.reason) || "";
             toggleReasonField();
-            document.getElementById('modal-title').textContent = (m === 'pre' ? `預放設定 - ${id}號` : `詳情設定 - ${id}號`);
             document.getElementById('modal').style.display = 'flex';
         }
 
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
         
         function clearSpecificData() {
-            const up = editMode === 'pre' ? 
-                { preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' } : 
-                { start: '', end: '', deputy: '', reason: '' };
+            const up = editMode === 'pre' ? { preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' } : { start: '', end: '', deputy: '', reason: '' };
             memberRef.child(currentEditingId).update(up);
             closeModal();
         }
@@ -231,14 +232,8 @@
         }
 
         function saveModal() {
-            const s = document.getElementById('start-time').value, 
-                  e = document.getElementById('end-time').value, 
-                  d = document.getElementById('deputy').value,
-                  ps = document.getElementById('pre-status-select').value,
-                  reason = document.getElementById('leave-reason').value;
-            const up = editMode === 'pre' ? 
-                { preLeave: true, preStart: s, preEnd: e, preDeputy: d, preStatus: ps, preReason: reason } : 
-                { start: s, end: e, deputy: d, reason: reason };
+            const s = document.getElementById('start-time').value, e = document.getElementById('end-time').value, d = document.getElementById('deputy').value, ps = document.getElementById('pre-status-select').value, reason = document.getElementById('leave-reason').value;
+            const up = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e, preDeputy: d, preStatus: ps, preReason: reason } : { start: s, end: e, deputy: d, reason: reason };
             memberRef.child(currentEditingId).update(up);
             closeModal();
         }
@@ -250,16 +245,9 @@
                 const preStartT = parseToTime(d.preStart);
                 const mainEndT = parseToTime(d.end);
                 if (d.preLeave && preStartT > 0 && now >= preStartT) {
-                    memberRef.child(id).update({
-                        status: d.preStatus || '輪休',
-                        start: d.preStart, end: d.preEnd, deputy: d.preDeputy, reason: d.preReason || '',
-                        preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: ''
-                    });
+                    memberRef.child(id).update({ status: d.preStatus || '輪休', start: d.preStart, end: d.preEnd, deputy: d.preDeputy, reason: d.preReason || '', preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' });
                 } else if (d.status !== '正常' && d.status !== '空員' && mainEndT > 0 && now >= mainEndT) {
-                    memberRef.child(id).update({
-                        status: '正常', start: '', end: '', deputy: '', reason: '',
-                        preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: ''
-                    });
+                    memberRef.child(id).update({ status: '正常', start: '', end: '', deputy: '', reason: '', preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' });
                 }
             });
         }
@@ -267,17 +255,13 @@
         memberRef.on('value', (sn) => {
             memberStates = sn.val() || {};
             smartSyncPersonnel(memberStates);
-
             const preLeaveList = document.getElementById('pre-leave-list');
             const preLeavers = allIds.filter(id => memberStates[id]?.preLeave);
             if (preLeavers.length > 0) {
                 preLeaveList.innerHTML = preLeavers.map(id => {
                     const d = memberStates[id];
                     const rText = (d.preReason && d.preStatus !== '輪休' && d.preStatus !== '慰休') ? `: ${d.preReason}` : "";
-                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center">
-                        <span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus}${rText})</span></span>
-                        <span class="text-slate-400 font-mono text-[8px]">${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}</span>
-                    </div>`;
+                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center"><span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus}${rText})</span></span><span class="text-slate-400 font-mono text-[8px]">${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}</span></div>`;
                 }).join('');
             } else preLeaveList.innerHTML = `<div class="text-slate-500 italic">目前無預放人員</div>`;
 
