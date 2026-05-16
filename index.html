@@ -116,6 +116,25 @@
             document.getElementById('reason-container').style.display = (currentStatus === '輪休' || currentStatus === '慰休') ? 'none' : 'block';
         }
 
+        // 🧰 新增：自動計算本週管理週末的六、日、一日期
+        function getTargetDates() {
+            let today = new Date();
+            let day = today.getDay(); // 0:日, 1:一, ..., 6:六
+            let sat = new Date(today);
+            if (day === 0) sat.setDate(today.getDate() - 1); // 如果今天是週日，週六是昨天
+            else if (day === 1) sat.setDate(today.getDate() - 2); // 如果今天是週一，週六是前天
+            else sat.setDate(today.getDate() + (6 - day)); // 週二至週六，目標是這週六
+            
+            let sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+            let mon = new Date(sat); mon.setDate(sat.getDate() + 2);
+            
+            return {
+                sat: sat.toISOString().split('T')[0],
+                sun: sun.toISOString().split('T')[0],
+                mon: mon.toISOString().split('T')[0]
+            };
+        }
+
         function initApp() {
             const app = document.getElementById('app'), deputySelect = document.getElementById('deputy');
             allIds.forEach(id => {
@@ -186,10 +205,12 @@
 
         function copyMealReport() {
             try {
+                // 🔄 這裡改成自動抓取日期，不需要每週手動改程式碼了！
+                const dates = getTargetDates();
                 const times = [
-                    {n: "週六早餐", t: "2026-05-16T07:00", m: "早"}, {n: "週六中餐", t: "2026-05-16T11:00", m: "中"}, {n: "週六晚餐", t: "2026-05-16T17:00", m: "晚"},
-                    {n: "週日早餐", t: "2026-05-17T07:00", m: "早"}, {n: "週日中餐", t: "2026-05-17T11:00", m: "中"}, {n: "週日晚餐", t: "2026-05-17T17:00", m: "晚"},
-                    {n: "週一早餐", t: "2026-05-18T07:00", m: "早"}
+                    {n: "週六早餐", t: `${dates.sat}T07:00`, m: "早"}, {n: "週六中餐", t: `${dates.sat}T11:00`, m: "中"}, {n: "週六晚餐", t: `${dates.sat}T17:00`, m: "晚"},
+                    {n: "週日早餐", t: `${dates.sun}T07:00`, m: "早"}, {n: "週日中餐", t: `${dates.sun}T11:00`, m: "中"}, {n: "週日晚餐", t: `${dates.sun}T17:00`, m: "晚"},
+                    {n: "週一早餐", t: `${dates.mon}T07:00`, m: "早"}
                 ];
                 let reportText = "61艇伙食統計表\n\n";
                 times.forEach(tm => {
@@ -197,7 +218,7 @@
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
                         
-                        // 1. 職代判定：有人請假/預放且 id 為其代理人 -> 必須留下來吃
+                        // 1. 職代判定
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
                             if (od.start && od.end && od.deputy === id) {
@@ -210,13 +231,13 @@
                         });
                         if (isDeputyNow) return true;
                         
-                        // 2. 本身請假/預放判定 -> 排除不吃
+                        // 2. 本身請假/預放判定
                         let selfOnLeave = false;
                         if (d.start && d.end && targetT >= parseToTime(d.start) && targetT < parseToTime(d.end)) selfOnLeave = true;
                         if (d.preLeave && d.preStart && d.preEnd && targetT >= parseToTime(d.preStart) && targetT < parseToTime(d.preEnd)) selfOnLeave = true;
                         if (selfOnLeave) return false;
                         
-                        // 3. 正常班別分配
+                        // 3. 常規班別
                         if (tm.m === '早') return true;
                         return (leftTeam.includes(id) ? "左" : "右") === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
