@@ -35,9 +35,14 @@
                     </div>
                     <div class="text-[11px] font-bold text-slate-300 italic pt-1">PERSONNEL & MEAL OPS</div>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="copyMealReport()" class="bg-blue-600 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製伙食</button>
-                    <button onclick="copyStatusReport()" class="bg-emerald-600 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">📋 複製動態</button>
+                
+                <div class="flex gap-1.5 items-center">
+                    <select id="week-select" class="bg-slate-700 text-[10px] px-1.5 py-2 rounded-lg font-bold border border-slate-600 text-amber-400 outline-none cursor-pointer">
+                        <option value="this">本週伙食</option>
+                        <option value="next">下週伙食 ➔</option>
+                    </select>
+                    <button onclick="copyMealReport()" class="bg-blue-600 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg">📋 複製伙食</button>
+                    <button onclick="copyStatusReport()" class="bg-emerald-600 text-[10px] px-2 py-2 rounded-lg font-bold shadow-lg">📋 複製動態</button>
                 </div>
             </div>
             <div id="top-pre-leave-board" class="bg-slate-900/50 rounded-2xl p-3 border border-amber-500/30 mx-1">
@@ -116,14 +121,22 @@
             document.getElementById('reason-container').style.display = (currentStatus === '輪休' || currentStatus === '慰休') ? 'none' : 'block';
         }
 
-        // 🧰 新增：自動計算本週管理週末的六、日、一日期
+        // 🧰 動態日期計算邏輯 (支援跨週切換)
         function getTargetDates() {
             let today = new Date();
-            let day = today.getDay(); // 0:日, 1:一, ..., 6:六
+            let day = today.getDay(); 
             let sat = new Date(today);
-            if (day === 0) sat.setDate(today.getDate() - 1); // 如果今天是週日，週六是昨天
-            else if (day === 1) sat.setDate(today.getDate() - 2); // 如果今天是週一，週六是前天
-            else sat.setDate(today.getDate() + (6 - day)); // 週二至週六，目標是這週六
+            
+            // 計算本週六
+            if (day === 0) sat.setDate(today.getDate() - 1); 
+            else if (day === 1) sat.setDate(today.getDate() - 2); 
+            else sat.setDate(today.getDate() + (6 - day)); 
+            
+            // 🛠️ 關鍵：如果下拉選單選「下週伙食」，日期自動往後推 7 天
+            const weekType = document.getElementById('week-select').value;
+            if (weekType === 'next') {
+                sat.setDate(sat.getDate() + 7);
+            }
             
             let sun = new Date(sat); sun.setDate(sat.getDate() + 1);
             let mon = new Date(sat); mon.setDate(sat.getDate() + 2);
@@ -205,7 +218,6 @@
 
         function copyMealReport() {
             try {
-                // 🔄 這裡改成自動抓取日期，不需要每週手動改程式碼了！
                 const dates = getTargetDates();
                 const times = [
                     {n: "週六早餐", t: `${dates.sat}T07:00`, m: "早"}, {n: "週六中餐", t: `${dates.sat}T11:00`, m: "中"}, {n: "週六晚餐", t: `${dates.sat}T17:00`, m: "晚"},
