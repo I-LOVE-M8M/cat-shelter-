@@ -115,10 +115,8 @@
             return new Date(str.replace(/-/g, '/').replace('T', ' ')).getTime();
         }
 
-        // 智慧清除功能
         function clearSpecificData() {
             if (!currentEditingId) return;
-            // 如果是在預放畫面按清除，就只清空預放欄位；如果在一般請假按清除，就清空常規請假欄位
             const up = editMode === 'pre' ? 
                 { preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' } : 
                 { start: '', end: '', deputy: '', reason: '' };
@@ -126,13 +124,14 @@
             closeModal();
         }
 
+        // 修正後的左右班判定
         function getDutyByDate(dateStr) {
             const base = new Date('2026/05/05 00:00:00'), target = new Date(dateStr.split('T')[0].replace(/-/g, '/') + ' 00:00:00');
             return (Math.abs(Math.round((target - base) / 86400000)) % 2 === 0) ? "左" : "右";
         }
 
         function toggleReasonField() {
-            const currentStatus = (editMode === 'pre') ? document.getElementById('pre-status-select').value : memberStates[currentEditingId]?.status;
+            const currentStatus = (editMode === 'pre') ? document.getElementById('pre-status-select').value : (memberStates[currentEditingId]?.status || '正常');
             document.getElementById('reason-container').style.display = (currentStatus === '輪休' || currentStatus === '慰休') ? 'none' : 'block';
         }
 
@@ -154,6 +153,7 @@
 
         function initApp() {
             const app = document.getElementById('app'), deputySelect = document.getElementById('deputy');
+            app.innerHTML = ""; // 清空
             allIds.forEach(id => {
                 const opt = document.createElement('option'); opt.value = id; opt.textContent = id; deputySelect.appendChild(opt);
                 const card = document.createElement('div'); card.id = `card-${id}`;
@@ -198,7 +198,9 @@
             if (preLeavers.length > 0) {
                 preLeaveList.innerHTML = preLeavers.map(id => {
                     const d = memberStates[id];
-                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center"><span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus})</span></span><span class="text-slate-400 font-mono text-[8px]">${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}</span></div>`;
+                    const pStart = d.preStart || '';
+                    const pEnd = d.preEnd || '';
+                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center"><span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus || '預放'})</span></span><span class="text-slate-400 font-mono text-[8px]">${pStart.slice(5,16).replace('T',' ')} ~ ${pEnd.slice(5,16).replace('T',' ')}</span></div>`;
                 }).join('');
             } else preLeaveList.innerHTML = `<div class="text-slate-500 italic text-[10px]">目前無預放人員</div>`;
 
@@ -208,7 +210,7 @@
                 document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
                 let info = "";
                 if(d.start && d.end) info += `[時:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')}]`;
-                if(d.preLeave && d.preStart && d.preEnd) info += `[預:${d.preStart.slice(5,16).replace('T',' ')}]`;
+                if(d.preLeave && d.preStart) info += `[預:${d.preStart.slice(5,16).replace('T',' ')}]`;
                 document.getElementById(`detail-${id}`).textContent = info;
                 document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
@@ -234,19 +236,28 @@
                     const targetT = parseToTime(tm.t), dutyTeam = getDutyByDate(tm.t);
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
+                        
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
-                            if (od.start && od.end && od.deputy === id && targetT >= parseToTime(od.start) && targetT < parseToTime(od.end)) return true;
-                            if (od.preLeave && od.preStart && od.preEnd && od.preDeputy === id && targetT >= parseToTime(od.preStart) && targetT < parseToTime(od.preEnd)) return true;
+                            if (od.start && od.end && od.deputy === id) {
+                                if (targetT >= parseToTime(od.start) && targetT < parseToTime(od.end)) return true;
+                            }
+                            if (od.preLeave && od.preStart && od.preEnd && od.preDeputy === id) {
+                                if (targetT >= parseToTime(od.preStart) && targetT < parseToTime(od.preEnd)) return true;
+                            }
                             return false;
                         });
                         if (isDeputyNow) return true;
+                        
                         let selfOnLeave = false;
                         if (d.start && d.end && targetT >= parseToTime(d.start) && targetT < parseToTime(d.end)) selfOnLeave = true;
                         if (d.preLeave && d.preStart && d.preEnd && targetT >= parseToTime(d.preStart) && targetT < parseToTime(d.preEnd)) selfOnLeave = true;
                         if (selfOnLeave) return false;
+                        
                         if (tm.m === '早') return true;
-                        return (leftTeam.includes(id) ? "left" ? "左" : "右") === dutyTeam;
+                        
+                        // 修正後的乾淨三元運算
+                        return (leftTeam.includes(id) ? "左" : "右") === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
                     reportText += `${tm.n} (${eaters.length}員)：${eaters.join('、')}\n`;
                 });
