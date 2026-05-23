@@ -115,6 +115,34 @@
             return new Date(str.replace(/-/g, '/').replace('T', ' ')).getTime();
         }
 
+        // 🛠️ 補回關鍵大腦：時間到了自動轉正與自動歸營
+        function smartSyncPersonnel(states) {
+            const now = new Date().getTime();
+            Object.keys(states).forEach(id => {
+                const d = states[id]; if (!d) return;
+                const preStartT = parseToTime(d.preStart);
+                const mainEndT = parseToTime(d.end);
+                
+                // 1. 如果預放時間到了 -> 自動切換為正式請假動態，並清除預放暫存
+                if (d.preLeave && preStartT > 0 && now >= preStartT) {
+                    memberRef.child(id).update({ 
+                        status: d.preStatus || '輪休', 
+                        start: d.preStart, 
+                        end: d.preEnd, 
+                        deputy: d.preDeputy || '無', 
+                        reason: d.preReason || '', 
+                        preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' 
+                    });
+                } 
+                // 2. 如果請假結束時間到了 -> 自動收假歸營恢復「正常」
+                else if (d.status !== '正常' && d.status !== '空員' && mainEndT > 0 && now >= mainEndT) {
+                    memberRef.child(id).update({ 
+                        status: '正常', start: '', end: '', deputy: '', reason: '' 
+                    });
+                }
+            });
+        }
+
         function clearSpecificData() {
             if (!currentEditingId) return;
             const up = editMode === 'pre' ? 
@@ -124,10 +152,9 @@
             closeModal();
         }
 
-        // 修正後的左右班判定
         function getDutyByDate(dateStr) {
             const base = new Date('2026/05/05 00:00:00'), target = new Date(dateStr.split('T')[0].replace(/-/g, '/') + ' 00:00:00');
-            return (Math.abs(Math.round((target - base) / 86400000)) % 2 === 0) ? "左" : "右";
+            return (Math.abs(Math.round((target - base) / 86400000)) % 2 === 0) ? "左" : "right" ? "左" : "右";
         }
 
         function toggleReasonField() {
@@ -153,7 +180,7 @@
 
         function initApp() {
             const app = document.getElementById('app'), deputySelect = document.getElementById('deputy');
-            app.innerHTML = ""; // 清空
+            app.innerHTML = ""; 
             allIds.forEach(id => {
                 const opt = document.createElement('option'); opt.value = id; opt.textContent = id; deputySelect.appendChild(opt);
                 const card = document.createElement('div'); card.id = `card-${id}`;
@@ -193,6 +220,10 @@
 
         memberRef.on('value', (sn) => {
             memberStates = sn.val() || {};
+            
+            // 🔄 啟動自動同步大腦
+            smartSyncPersonnel(memberStates);
+
             const preLeaveList = document.getElementById('pre-leave-list');
             const preLeavers = allIds.filter(id => memberStates[id]?.preLeave);
             if (preLeavers.length > 0) {
@@ -256,7 +287,6 @@
                         
                         if (tm.m === '早') return true;
                         
-                        // 修正後的乾淨三元運算
                         return (leftTeam.includes(id) ? "左" : "右") === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
                     reportText += `${tm.n} (${eaters.length}員)：${eaters.join('、')}\n`;
