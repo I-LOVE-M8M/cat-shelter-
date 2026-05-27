@@ -20,6 +20,9 @@
         .bg-空員 { background-color: #334155; opacity: 0.5; }
         #modal { display: none; background: rgba(0,0,0,0.9); }
         .pre-leave-active { background-color: #f43f5e !important; border: 2px solid #fb7185 !important; color: white !important; }
+        /* 隱藏預設捲軸，讓選單更美觀 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="min-h-screen pb-32 text-xs sm:text-sm">
@@ -72,9 +75,13 @@
                 </div>
                 <div><label class="block text-slate-400 mb-1">開始/離營時間</label><input type="datetime-local" id="start-time" class="w-full bg-slate-900 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1">結束/歸營時間</label><input type="datetime-local" id="end-time" class="w-full bg-slate-900 rounded-lg p-2 text-white outline-none"></div>
+                
+                <!-- 修改為可複選的職務代理人區塊 -->
                 <div>
-                    <label class="block text-slate-400 mb-1">職務代理人</label>
-                    <select id="deputy" class="w-full bg-slate-900 rounded-lg p-2 text-white outline-none"><option value="無">無</option></select>
+                    <label class="block text-slate-400 mb-1">職務代理人 (可複選)</label>
+                    <div id="deputy-container" class="w-full bg-slate-900 rounded-lg p-2 max-h-24 overflow-y-auto no-scrollbar flex flex-wrap gap-1.5 border border-slate-700">
+                        <!-- 選項由JS產生 -->
+                    </div>
                 </div>
             </div>
             
@@ -105,7 +112,7 @@
         const allIds = [...leftTeam, ...rightTeam].sort((a,b) => parseInt(a) - parseInt(b));
         const statuses = ['正常', '開船', '駐艇', '值更', '碼巡', '洽公', '幫廚', '補眠', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假', '受訓', '公假', '空員'];
         let memberStates = {}, currentEditingId = null, editMode = ""; 
-        let selectedBatchIds = []; // 儲存批次選取的 ID
+        let selectedBatchIds = [];
 
         async function fetchSunset() {
             try {
@@ -120,7 +127,6 @@
             return new Date(str.replace(/-/g, '/').replace('T', ' ')).getTime();
         }
 
-        // 時間到了自動轉正與自動歸營
         function smartSyncPersonnel(states) {
             const now = new Date().getTime();
             Object.keys(states).forEach(id => {
@@ -133,7 +139,7 @@
                         status: d.preStatus || '輪休', 
                         start: d.preStart, 
                         end: d.preEnd, 
-                        deputy: d.preDeputy || '無', 
+                        deputy: d.preDeputy || '', 
                         reason: d.preReason || '', 
                         preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' 
                     });
@@ -189,13 +195,23 @@
         }
 
         function initApp() {
-            const app = document.getElementById('app'), deputySelect = document.getElementById('deputy');
+            const app = document.getElementById('app');
+            const deputyContainer = document.getElementById('deputy-container');
+            
             app.innerHTML = ""; 
+            deputyContainer.innerHTML = "";
+
             allIds.forEach(id => {
-                const opt = document.createElement('option'); opt.value = id; opt.textContent = id; deputySelect.appendChild(opt);
+                // 產生多選職代按鈕
+                deputyContainer.innerHTML += `
+                    <label class="flex items-center gap-1.5 text-slate-300 text-[11px] bg-slate-800 px-2 py-1.5 rounded-lg cursor-pointer border border-slate-700 hover:bg-slate-700 transition-colors">
+                        <input type="checkbox" value="${id}" class="deputy-checkbox accent-indigo-500 w-3.5 h-3.5"> 
+                        <span class="font-mono font-bold">${id}</span>
+                    </label>
+                `;
+
                 const card = document.createElement('div'); card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
-                // 這裡加入了 checkbox
                 card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-1.5"><input type="checkbox" id="chk-${id}" value="${id}" class="batch-checkbox w-3.5 h-3.5 accent-amber-500 rounded cursor-pointer"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">正常</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px]"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
                 app.appendChild(card);
             });
@@ -203,7 +219,17 @@
             fetchSunset();
         }
 
-        // 呼叫批次預放面板
+        function setDeputyCheckboxes(deputyString) {
+            const deputies = deputyString ? deputyString.split(',') : [];
+            document.querySelectorAll('.deputy-checkbox').forEach(cb => {
+                cb.checked = deputies.includes(cb.value);
+            });
+        }
+
+        function getSelectedDeputies() {
+            return Array.from(document.querySelectorAll('.deputy-checkbox:checked')).map(cb => cb.value).join(',');
+        }
+
         function openBatchModal() {
             const checkboxes = document.querySelectorAll('.batch-checkbox:checked');
             selectedBatchIds = Array.from(checkboxes).map(cb => cb.value);
@@ -219,9 +245,9 @@
             document.getElementById('pre-status-container').className = "block";
             document.getElementById('start-time').value = `${nowDay}T07:00`;
             document.getElementById('end-time').value = `${nowDay}T07:00`;
-            document.getElementById('deputy').value = "無";
             document.getElementById('pre-status-select').value = "輪休";
             document.getElementById('leave-reason').value = "";
+            setDeputyCheckboxes(""); // 預設清空
             toggleReasonField();
             
             document.getElementById('modal-title').textContent = `批次設定 (${selectedBatchIds.join(', ')})`;
@@ -234,9 +260,12 @@
             document.getElementById('pre-status-container').className = (m === 'pre' ? "block" : "hidden");
             document.getElementById('start-time').value = (m==='pre' ? d.preStart : d.start) || `${nowDay}T07:00`;
             document.getElementById('end-time').value = (m==='pre' ? d.preEnd : d.end) || `${nowDay}T07:00`;
-            document.getElementById('deputy').value = (m==='pre' ? d.preDeputy : d.deputy) || "無";
             document.getElementById('pre-status-select').value = d.preStatus || "輪休";
             document.getElementById('leave-reason').value = (m==='pre' ? d.preReason : d.reason) || "";
+            
+            // 讀取並勾選已選取的職代
+            setDeputyCheckboxes((m === 'pre' ? d.preDeputy : d.deputy) || "");
+            
             toggleReasonField();
             document.getElementById('modal-title').textContent = (m === 'pre' ? `預放設定 - ${id}號` : `詳情設定 - ${id}號`);
             document.getElementById('modal').style.display = 'flex';
@@ -251,7 +280,7 @@
         function saveModal() {
             const s = document.getElementById('start-time').value;
             const e = document.getElementById('end-time').value;
-            const d = document.getElementById('deputy').value;
+            const d = getSelectedDeputies(); // 取得多選結果字串 (ex: "03,05")
             const ps = document.getElementById('pre-status-select').value;
             const r = document.getElementById('leave-reason').value;
 
@@ -259,7 +288,6 @@
                 selectedBatchIds.forEach(id => {
                     memberRef.child(id).update({ preLeave: true, preStart: s, preEnd: e, preDeputy: d, preStatus: ps, preReason: r });
                 });
-                // 儲存後取消勾選狀態
                 document.querySelectorAll('.batch-checkbox:checked').forEach(cb => cb.checked = false);
             } else {
                 const up = editMode === 'pre' ? { preLeave: true, preStart: s, preEnd: e, preDeputy: d, preStatus: ps, preReason: r } : { start: s, end: e, deputy: d, reason: r };
@@ -270,8 +298,6 @@
 
         memberRef.on('value', (sn) => {
             memberStates = sn.val() || {};
-            
-            // 啟動自動同步大腦
             smartSyncPersonnel(memberStates);
 
             const preLeaveList = document.getElementById('pre-leave-list');
@@ -318,12 +344,16 @@
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
                         
+                        // 多選職代檢查邏輯
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
-                            if (od.start && od.end && od.deputy === id) {
+                            const depStr = od.deputy || "";
+                            const preDepStr = od.preDeputy || "";
+                            
+                            if (od.start && od.end && depStr.includes(id)) {
                                 if (targetT >= parseToTime(od.start) && targetT < parseToTime(od.end)) return true;
                             }
-                            if (od.preLeave && od.preStart && od.preEnd && od.preDeputy === id) {
+                            if (od.preLeave && od.preStart && od.preEnd && preDepStr.includes(id)) {
                                 if (targetT >= parseToTime(od.preStart) && targetT < parseToTime(od.preEnd)) return true;
                             }
                             return false;
