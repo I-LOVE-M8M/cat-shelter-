@@ -20,7 +20,6 @@
         .bg-空員 { background-color: #334155; opacity: 0.5; }
         #modal { display: none; background: rgba(0,0,0,0.9); }
         .pre-leave-active { background-color: #f43f5e !important; border: 2px solid #fb7185 !important; color: white !important; }
-        /* 隱藏預設捲軸，讓選單更美觀 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -76,7 +75,6 @@
                 <div><label class="block text-slate-400 mb-1">開始/離營時間</label><input type="datetime-local" id="start-time" class="w-full bg-slate-900 rounded-lg p-2 text-white outline-none"></div>
                 <div><label class="block text-slate-400 mb-1">結束/歸營時間</label><input type="datetime-local" id="end-time" class="w-full bg-slate-900 rounded-lg p-2 text-white outline-none"></div>
                 
-                <!-- 修改為可複選的職務代理人區塊 -->
                 <div>
                     <label class="block text-slate-400 mb-1">職務代理人 (可複選)</label>
                     <div id="deputy-container" class="w-full bg-slate-900 rounded-lg p-2 max-h-24 overflow-y-auto no-scrollbar flex flex-wrap gap-1.5 border border-slate-700">
@@ -127,6 +125,7 @@
             return new Date(str.replace(/-/g, '/').replace('T', ' ')).getTime();
         }
 
+        // 智慧時間轉換 (時間到自動變真放假、歸營自動變正常)
         function smartSyncPersonnel(states) {
             const now = new Date().getTime();
             Object.keys(states).forEach(id => {
@@ -134,6 +133,7 @@
                 const preStartT = parseToTime(d.preStart);
                 const mainEndT = parseToTime(d.end);
                 
+                // 預防時間到了 -> 自動轉成真正的放假 (輪休等)
                 if (d.preLeave && preStartT > 0 && now >= preStartT) {
                     memberRef.child(id).update({ 
                         status: d.preStatus || '輪休', 
@@ -144,6 +144,7 @@
                         preLeave: false, preStart: '', preEnd: '', preDeputy: '', preStatus: '', preReason: '' 
                     });
                 } 
+                // 歸營時間到了 -> 自動跳回正常
                 else if (d.status !== '正常' && d.status !== '空員' && mainEndT > 0 && now >= mainEndT) {
                     memberRef.child(id).update({ 
                         status: '正常', start: '', end: '', deputy: '', reason: '' 
@@ -151,6 +152,13 @@
                 }
             });
         }
+
+        // 設定每 30 秒自動檢查一次時間，觸發自動轉換
+        setInterval(() => {
+            if(Object.keys(memberStates).length > 0) {
+                smartSyncPersonnel(memberStates);
+            }
+        }, 30000); 
 
         function clearSpecificData() {
             if (editMode === 'batch') {
@@ -168,9 +176,10 @@
             closeModal();
         }
 
+        // 修復：正確判斷左右班，修正之前導致全部判斷為左班的錯誤
         function getDutyByDate(dateStr) {
             const base = new Date('2026/05/05 00:00:00'), target = new Date(dateStr.split('T')[0].replace(/-/g, '/') + ' 00:00:00');
-            return (Math.abs(Math.round((target - base) / 86400000)) % 2 === 0) ? "左" : "right" ? "左" : "右";
+            return (Math.abs(Math.round((target - base) / 86400000)) % 2 === 0) ? "左" : "右";
         }
 
         function toggleReasonField() {
@@ -202,7 +211,6 @@
             deputyContainer.innerHTML = "";
 
             allIds.forEach(id => {
-                // 產生多選職代按鈕
                 deputyContainer.innerHTML += `
                     <label class="flex items-center gap-1.5 text-slate-300 text-[11px] bg-slate-800 px-2 py-1.5 rounded-lg cursor-pointer border border-slate-700 hover:bg-slate-700 transition-colors">
                         <input type="checkbox" value="${id}" class="deputy-checkbox accent-indigo-500 w-3.5 h-3.5"> 
@@ -212,7 +220,7 @@
 
                 const card = document.createElement('div'); card.id = `card-${id}`;
                 card.className = "bg-slate-800/80 p-3 rounded-2xl border border-slate-700/50";
-                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-1.5"><input type="checkbox" id="chk-${id}" value="${id}" class="batch-checkbox w-3.5 h-3.5 accent-amber-500 rounded cursor-pointer"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">正常</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px]"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-2 px-1"><div class="flex items-center gap-1.5"><input type="checkbox" id="chk-${id}" value="${id}" class="batch-checkbox w-3.5 h-3.5 accent-amber-500 rounded cursor-pointer"><span class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 text-slate-400 font-mono text-xs font-bold">${id}</span><span id="tag-${id}" class="px-2 py-0.5 rounded text-[9px] font-bold bg-正常 text-white">正常</span></div><button id="pre-${id}" onclick="openConfigModal('${id}', 'pre')" class="text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500">預放</button></div><div id="detail-${id}" class="text-[8px] text-amber-400 font-bold mb-2 px-1 min-h-[14px] leading-tight"></div><div class="grid grid-cols-4 gap-1">${statuses.map(s => `<button onclick="handleStatusClick('${id}', '${s}')" id="btn-${id}-${s}" class="status-btn py-2 rounded-md text-[9px] bg-slate-900/40 text-slate-400">${s}</button>`).join('')}</div>`;
                 app.appendChild(card);
             });
             document.getElementById('today-duty').textContent = `📅 今日當值：${getDutyByDate(new Date().toISOString().split('T')[0])}班`;
@@ -247,7 +255,7 @@
             document.getElementById('end-time').value = `${nowDay}T07:00`;
             document.getElementById('pre-status-select').value = "輪休";
             document.getElementById('leave-reason').value = "";
-            setDeputyCheckboxes(""); // 預設清空
+            setDeputyCheckboxes(""); 
             toggleReasonField();
             
             document.getElementById('modal-title').textContent = `批次設定 (${selectedBatchIds.join(', ')})`;
@@ -263,7 +271,6 @@
             document.getElementById('pre-status-select').value = d.preStatus || "輪休";
             document.getElementById('leave-reason').value = (m==='pre' ? d.preReason : d.reason) || "";
             
-            // 讀取並勾選已選取的職代
             setDeputyCheckboxes((m === 'pre' ? d.preDeputy : d.deputy) || "");
             
             toggleReasonField();
@@ -280,7 +287,7 @@
         function saveModal() {
             const s = document.getElementById('start-time').value;
             const e = document.getElementById('end-time').value;
-            const d = getSelectedDeputies(); // 取得多選結果字串 (ex: "03,05")
+            const d = getSelectedDeputies(); 
             const ps = document.getElementById('pre-status-select').value;
             const r = document.getElementById('leave-reason').value;
 
@@ -307,7 +314,9 @@
                     const d = memberStates[id];
                     const pStart = d.preStart || '';
                     const pEnd = d.preEnd || '';
-                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center"><span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus || '預放'})</span></span><span class="text-slate-400 font-mono text-[8px]">${pStart.slice(5,16).replace('T',' ')} ~ ${pEnd.slice(5,16).replace('T',' ')}</span></div>`;
+                    // 修改：上方預放名單也會顯示職代
+                    const pDep = d.preDeputy ? ` <span class="text-indigo-400 font-bold ml-1">代:${d.preDeputy}</span>` : '';
+                    return `<div class="bg-slate-800/50 p-1.5 rounded-lg border-l-2 border-amber-500 flex justify-between items-center"><span class="text-white font-bold">${id} <span class="text-amber-500">(${d.preStatus || '預放'})</span></span><span class="text-slate-400 font-mono text-[8px]">${pStart.slice(5,16).replace('T',' ')} ~ ${pEnd.slice(5,16).replace('T',' ')}${pDep}</span></div>`;
                 }).join('');
             } else preLeaveList.innerHTML = `<div class="text-slate-500 italic text-[10px]">目前無預放人員</div>`;
 
@@ -315,14 +324,25 @@
                 const d = memberStates[id]; if(!d) return;
                 document.getElementById(`tag-${id}`).textContent = d.status;
                 document.getElementById(`tag-${id}`).className = `px-2 py-0.5 rounded text-[9px] font-bold bg-${d.status} text-white`;
+                
+                // 修改：詳細資訊字串拼接，顯示職代或預放職代
                 let info = "";
-                if(d.start && d.end) info += `[時:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')}]`;
-                if(d.preLeave && d.preStart) info += `[預:${d.preStart.slice(5,16).replace('T',' ')}]`;
-                document.getElementById(`detail-${id}`).textContent = info;
+                if(d.start && d.end) {
+                    info += `[時:${d.start.slice(5,16).replace('T',' ')} ~ ${d.end.slice(5,16).replace('T',' ')}]`;
+                    if (d.deputy) info += ` <span class="text-indigo-400">代:${d.deputy}</span>`;
+                }
+                if(d.preLeave && d.preStart) {
+                    if(info) info += "<br>"; // 換行避免擠在一起
+                    info += `[預:${d.preStart.slice(5,16).replace('T',' ')} ~ ${d.preEnd.slice(5,16).replace('T',' ')}]`;
+                    if (d.preDeputy) info += ` <span class="text-indigo-400">預代:${d.preDeputy}</span>`;
+                }
+                document.getElementById(`detail-${id}`).innerHTML = info;
+
                 document.getElementById(`pre-${id}`).className = d.preLeave ? "text-[9px] px-2 py-1 rounded pre-leave-active font-bold" : "text-[9px] px-2 py-1 rounded border border-slate-600 text-slate-500";
                 document.querySelectorAll(`[id^="btn-${id}-"]`).forEach(b => b.classList.remove('active-status'));
                 const btn = document.getElementById(`btn-${id}-${d.status}`); if(btn) btn.classList.add('active-status');
             });
+            
             const board = document.getElementById('stat-board'); board.innerHTML = "";
             statuses.forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s);
@@ -344,15 +364,17 @@
                     const eaters = allIds.filter(id => {
                         const d = memberStates[id]; if(!d || d.status === '空員') return false;
                         
-                        // 多選職代檢查邏輯
+                        // 檢查自己有沒有掛著別人的職代 (有的話一定要吃)
                         const isDeputyNow = allIds.some(oid => {
                             const od = memberStates[oid]; if(!od) return false;
                             const depStr = od.deputy || "";
                             const preDepStr = od.preDeputy || "";
                             
+                            // 檢查正常假別的職代
                             if (od.start && od.end && depStr.includes(id)) {
                                 if (targetT >= parseToTime(od.start) && targetT < parseToTime(od.end)) return true;
                             }
+                            // 檢查預放假別的職代
                             if (od.preLeave && od.preStart && od.preEnd && preDepStr.includes(id)) {
                                 if (targetT >= parseToTime(od.preStart) && targetT < parseToTime(od.preEnd)) return true;
                             }
@@ -361,12 +383,15 @@
                         if (isDeputyNow) return true;
                         
                         let selfOnLeave = false;
+                        // 如果自己正在放假時間內
                         if (d.start && d.end && targetT >= parseToTime(d.start) && targetT < parseToTime(d.end)) selfOnLeave = true;
+                        // 如果自己正在「預放」的時間內 (預放算真放假)
                         if (d.preLeave && d.preStart && d.preEnd && targetT >= parseToTime(d.preStart) && targetT < parseToTime(d.preEnd)) selfOnLeave = true;
-                        if (selfOnLeave) return false;
                         
+                        if (selfOnLeave) return false;
                         if (tm.m === '早') return true;
                         
+                        // 依照正確的左右班判斷
                         return (leftTeam.includes(id) ? "左" : "右") === dutyTeam;
                     }).sort((a,b) => parseInt(a)-parseInt(b));
                     reportText += `${tm.n} (${eaters.length}員)：${eaters.join('、')}\n`;
