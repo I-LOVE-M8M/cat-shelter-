@@ -358,7 +358,7 @@
                     {n: "週日早餐", t: `${dates.sun}T07:00`, m: "早"}, {n: "週日中餐", t: `${dates.sun}T11:00`, m: "中"}, {n: "週日晚餐", t: `${dates.sun}T17:00`, m: "晚"},
                     {n: "週一早餐", t: `${dates.mon}T07:00`, m: "早"}
                 ];
-                let reportText = "61艇伙食統計表\n\n";
+                let reportText = "伙食統計表\n\n";
                 times.forEach(tm => {
                     const targetT = parseToTime(tm.t), dutyTeam = getDutyByDate(tm.t);
                     const eaters = allIds.filter(id => {
@@ -401,7 +401,7 @@
         }
 
         function copyStatusReport() {
-            let text = "61艇人員動態回報\n";
+            let text = "人員動態回報\n";
             ['受訓', '公假', '外宿', '放假班', '輪休', '慰休', '喪假', '事假', '病假'].forEach(s => {
                 const f = allIds.filter(id => memberStates[id]?.status === s);
                 if (f.length > 0) text += `${s} (${f.length}員)：${f.join('、')}\n`;
